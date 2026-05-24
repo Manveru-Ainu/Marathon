@@ -959,53 +959,63 @@ async function pollGameState() {
     if(gs.positions)  state.positions    = gs.positions;
     if(gs.scores)     state.scores       = gs.scores;
     if(typeof gs.ignorancePos !== 'undefined') state.ignorancePos = gs.ignorancePos;
-    if(typeof gs.pendingDiceRoll !== 'undefined' && gs.pendingDiceRoll !== null) state.pendingDiceRoll = gs.pendingDiceRoll;
-    if(typeof gs.currentPlayer !== 'undefined') state.currentPlayer = gs.currentPlayer;
-
-    buildTrack();
-    renderTokens();
-    updateCurrentPlayer();
 
     // ── Check winner ──
     if(gs.winner && !state.winnerDeclared) {
       state.winnerDeclared = true;
+      buildTrack(); renderTokens(); updateCurrentPlayer();
       setTimeout(() => showWinner(), 500);
       return;
     }
 
-    // ── Phase-based UI sync ──
-    // Phases: 'waiting' | 'question' | 'answered' | 'next'
+    // ── Detect turn change (currentPlayer changed in Firebase) ──
+    const newCurrentPlayer = (typeof gs.currentPlayer !== 'undefined') ? gs.currentPlayer : state.currentPlayer;
+    const turnChanged = newCurrentPlayer !== state.currentPlayer;
+    if(turnChanged) {
+      state.currentPlayer = newCurrentPlayer;
+      state.pendingDiceRoll = -1;
+      state.lastQuestionId = null;
+      state.lastPhase = '';
+    }
+    if(typeof gs.pendingDiceRoll !== 'undefined' && gs.pendingDiceRoll !== null) {
+      state.pendingDiceRoll = gs.pendingDiceRoll;
+    }
+
+    buildTrack(); renderTokens(); updateCurrentPlayer();
+
     const phase = gs.phase || 'waiting';
     const qId   = gs.questionId || null;
 
-    if(phase === 'waiting' || !gs.activeQuestion) {
-      // Always fire startTurnForDevice when transitioning to waiting
-      // (reset lastPhase so the check doesn't get stuck)
+    // ── WAITING: start of turn ──
+    if(phase === 'waiting' || phase === 'next') {
       if(state.lastPhase !== 'waiting') {
         state.lastPhase = 'waiting';
-        state.pendingDiceRoll = -1; // reset dice for new turn
+        state.pendingDiceRoll = -1;
         startTurnForDevice();
       }
+      return;
+    }
 
-    } else if(phase === 'question' && qId !== state.lastQuestionId) {
-      // New question arrived
+    // ── HOST signals 'next': execute turn change ──
+    if(phase === 'next' && lobbyRole === 'host' && state.lastPhase !== 'next') {
+      state.lastPhase = 'next';
+      nextTurn();
+      return;
+    }
+
+    // ── QUESTION: new question appeared ──
+    if(phase === 'question' && gs.activeQuestion && qId !== state.lastQuestionId) {
       state.lastQuestionId = qId;
       state.lastPhase = 'question';
       renderSyncedQuestion(gs.activeQuestion);
+      return;
+    }
 
-    } else if(phase === 'answered' && gs.answerResult && state.lastPhase !== 'answered') {
-      // Answer was submitted — show result to everyone
+    // ── ANSWERED: show result to everyone ──
+    if(phase === 'answered' && gs.answerResult && state.lastPhase !== 'answered') {
       state.lastPhase = 'answered';
       applyAnswerResult(gs.answerResult, gs.activeQuestion);
-
-    } else if(phase === 'next' && state.lastPhase !== 'next') {
-      state.lastPhase = 'next';
-      if(lobbyRole === 'host') {
-        // Host received 'next' signal from a player — execute the turn change
-        nextTurn();
-      }
-      // Non-host devices: do nothing here — wait for Firebase to push
-      // phase:'waiting' (which nextTurn() will set), then startTurnForDevice runs
+      return;
     }
 
   } catch(e) {}
@@ -2410,16 +2420,7 @@ function addNextBtnOnDevice() {
   nextBtn.onclick = () => {
     nextBtn.disabled = true;
     nextBtn.style.opacity = '0.5';
-    if(lobbyRole === 'host') {
-      // Host drives the game
-      nextTurn();
-    } else {
-      // Player signals host to advance
-      if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState',{
-        phase: 'next'
-      }).catch(()=>{});
-      nextBtn.textContent = '⏳ Waiting for host...';
-    }
+    nextTurn(); // Everyone can call nextTurn — it handles Firebase push
   };
   actions.appendChild(nextBtn);
 }
@@ -2437,12 +2438,11 @@ function showFeedback(msg, good) {
 }
 
 function nextTurn() {
-  // BUG FIX: use players.length — never depends on numPlayers which can be null
   const total = state.players.length;
   state.currentPlayer = (state.currentPlayer + 1) % total;
   state.currentTopic  = null;
-  state.pendingDiceRoll = -1;  // -1 = "not rolled yet" (0 would be falsy)
-  state.lastPhase     = '';    // reset so pollGameState always fires startTurnForDevice
+  state.pendingDiceRoll = -1;
+  state.lastPhase     = ''; // empty so pollGameState always triggers startTurnForDevice
 
   if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState', {
     currentPlayer: state.currentPlayer,
@@ -2457,15 +2457,7 @@ function nextTurn() {
   hideQuestion();
   updateCurrentPlayer();
   buildTopicPills();
-
-  document.getElementById('no-q-msg').style.display = 'block';
-  document.getElementById('no-q-msg').innerHTML =
-    '<div style="font-size:28px;margin-bottom:8px">🎲</div>' +
-    '<div style="font-weight:800;font-size:14px;color:var(--text)">Rolling dice for ' +
-    state.players[state.currentPlayer] + '...</div>';
-
-  // Only the active player's device triggers dice + question
-  startTurnForDevice();
+  startTurnForDevice(); // immediately start on this device too
 }
 
 // Called on every device when a new turn begins (via nextTurn or pollGameState)
