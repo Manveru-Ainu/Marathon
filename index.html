@@ -996,15 +996,18 @@ async function pollGameState() {
       applyAnswerResult(gs.answerResult, gs.activeQuestion);
 
     } else if(phase === 'next' && state.lastPhase !== 'next') {
-      // Host pressed Next — clear question, show waiting
       state.lastPhase = 'next';
-      hideQuestion();
-      document.getElementById('no-q-msg').style.display = 'block';
-      document.getElementById('no-q-msg').innerHTML =
-        '<div style="font-size:28px;margin-bottom:8px">🔄</div>' +
-        '<div style="font-weight:800;font-size:14px;color:var(--text)">' +
-        state.players[state.currentPlayer] + '\'s turn — waiting for question...</div>';
-      buildTopicPills();
+      if(lobbyRole === 'host') {
+        // Host received 'next' signal from a player — execute the turn change
+        nextTurn();
+      } else {
+        // Non-host: just show waiting screen
+        hideQuestion();
+        document.getElementById('no-q-msg').style.display = 'block';
+        document.getElementById('no-q-msg').innerHTML =
+          '<div style="font-size:28px;margin-bottom:8px">🔄</div>' +
+          '<div style="font-weight:800;font-size:14px;color:var(--text)">Moving to next turn...</div>';
+      }
     }
 
   } catch(e) {}
@@ -1281,19 +1284,17 @@ function submitAnswer(userVal, correctVal, ans, exp, opts, type) {
   actions.appendChild(fb);
 
   if(lobbyRole==='host') {
-    // Host device always calls awardPoints directly (host manages the game)
+    // Host is the active player — resolve immediately
     awardPoints(isCorrect);
   } else {
-    // Non-host player device — push result to Firebase, host will resolve
+    // Non-host active player — push result + show Next btn
     if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState',{
       phase:'answered',
       answerResult:{correct:isCorrect,player:lobbyName,userVal,type}
     }).catch(()=>{});
     state.lastPhase='answered';
-    const w=document.createElement('div');
-    w.style.cssText='font-size:12px;color:var(--muted);text-align:center;margin-top:4px;font-weight:700';
-    w.textContent='⏳ Waiting for result...';
-    actions.appendChild(w);
+    // Show Next btn on this device too — clicking pushes 'next' phase to Firebase
+    addNextBtnOnDevice();
   }
 }
 
@@ -1318,10 +1319,8 @@ function applyAnswerResult(result, aqData) {
     banner.style.cssText='padding:12px 16px;border-radius:10px;font-weight:800;font-size:14px;text-align:center;'+(result.correct?'background:rgba(0,230,118,.15);border:1.5px solid var(--green);color:var(--green)':'background:rgba(255,82,82,.1);border:1.5px solid var(--red);color:var(--red)');
     banner.textContent=result.correct?'🎉 '+result.player+' answered correctly! +2 steps':'❌ Wrong! Everyone else +1 step';
     actions.appendChild(banner);
-    const w=document.createElement('div');
-    w.style.cssText='padding:8px;font-size:12px;color:var(--muted);text-align:center;margin-top:4px;font-weight:700';
-    w.textContent='⏳ Waiting for next turn...';
-    actions.appendChild(w);
+    // Everyone sees the Next btn — host executes it, others push a signal
+    addNextBtnOnDevice();
   }
 }
 
@@ -2405,14 +2404,37 @@ function showIgnoranceWins() {
 
 
 function addNextBtn() {
+  addNextBtnOnDevice();
+}
+
+// Shows Next btn on every device.
+// Host: calls nextTurn() directly.
+// Players: push phase:'next' to Firebase so host picks it up.
+function addNextBtnOnDevice() {
   const actions = document.getElementById('q-actions');
-  // Remove any existing next btn first
+  if(!actions) return;
   const existing = actions.querySelector('.btn-next');
   if(existing) existing.remove();
+
   const nextBtn = document.createElement('button');
   nextBtn.className = 'btn-next';
+  nextBtn.style.cssText += ';width:100%;margin-top:8px;padding:14px;font-size:20px';
   nextBtn.textContent = 'Next Player ▶';
-  nextBtn.onclick = nextTurn;
+
+  nextBtn.onclick = () => {
+    nextBtn.disabled = true;
+    nextBtn.style.opacity = '0.5';
+    if(lobbyRole === 'host') {
+      // Host drives the game
+      nextTurn();
+    } else {
+      // Player signals host to advance
+      if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState',{
+        phase: 'next'
+      }).catch(()=>{});
+      nextBtn.textContent = '⏳ Waiting for host...';
+    }
+  };
   actions.appendChild(nextBtn);
 }
 
