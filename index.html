@@ -980,16 +980,38 @@ async function pollGameState() {
     const qId   = gs.questionId || null;
 
     if(phase === 'waiting' || !gs.activeQuestion) {
-      // Between turns — show the "waiting" screen
       if(state.lastPhase !== 'waiting') {
         state.lastPhase = 'waiting';
         hideQuestion();
-        document.getElementById('no-q-msg').style.display = 'block';
-        document.getElementById('no-q-msg').innerHTML =
-          '<div style="font-size:28px;margin-bottom:8px">⏳</div>' +
-          '<div style="font-weight:800;font-size:14px;color:var(--text)">Waiting for ' +
-          state.players[state.currentPlayer] + ' to pick a question...</div>';
         buildTopicPills();
+
+        const activeName = (state.players[state.currentPlayer]||'').trim().toUpperCase();
+        const myName     = (lobbyName||'').trim().toUpperCase();
+        const isMyTurn   = myName === activeName;
+
+        if(isMyTurn && state.pendingDiceRoll < 1) {
+          // It's my turn — show pre-roll and dice
+          document.getElementById('no-q-msg').style.display = 'block';
+          document.getElementById('no-q-msg').innerHTML =
+            '<div style="font-size:28px;margin-bottom:8px">🎲</div>' +
+            '<div style="font-weight:800;font-size:14px;color:var(--text)">Roll the dice to start your turn!</div>';
+          showPreRoll().then(() => rollDice()).then(rolled => {
+            state.pendingDiceRoll = rolled;
+            if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState',
+              { pendingDiceRoll: rolled }).catch(()=>{});
+            document.getElementById('no-q-msg').innerHTML =
+              '<div style="font-size:32px;margin-bottom:6px">🎲 ' + rolled + ' steps at stake!</div>' +
+              '<div style="font-weight:800;font-size:14px;color:var(--text)">Answer correctly to advance ' + rolled + ' spaces!</div>';
+            buildTopicPills();
+          });
+        } else {
+          // Spectator — wait for active player
+          document.getElementById('no-q-msg').style.display = 'block';
+          document.getElementById('no-q-msg').innerHTML =
+            '<div style="font-size:28px;margin-bottom:8px">⏳</div>' +
+            '<div style="font-weight:800;font-size:14px;color:var(--text)">Waiting for ' +
+            state.players[state.currentPlayer] + ' to roll the dice...</div>';
+        }
       }
 
     } else if(phase === 'question' && qId !== state.lastQuestionId) {
@@ -1289,8 +1311,10 @@ function submitAnswer(userVal, correctVal, ans, exp, opts, type) {
   actions.appendChild(fb);
 
   if(lobbyRole==='host') {
+    // Host device always calls awardPoints directly (host manages the game)
     awardPoints(isCorrect);
   } else {
+    // Non-host player device — push result to Firebase, host will resolve
     if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState',{
       phase:'answered',
       answerResult:{correct:isCorrect,player:lobbyName,userVal,type}
@@ -1369,12 +1393,13 @@ function showQuestion(topic) {
     }).catch(()=>{});
     const activeName=(state.players[state.currentPlayer]||'').trim().toUpperCase();
     const myName=(lobbyName||'').trim().toUpperCase();
+    // Host watches for player answer whenever it's not the host's own turn
     if(myName!==activeName) hostWatchForPlayerAnswer();
   }
 
   const activeName=(state.players[state.currentPlayer]||'').trim().toUpperCase();
   const myName=(lobbyName||'').trim().toUpperCase();
-  const isInteractive=(lobbyRole==='host')||(myName===activeName);
+  const isInteractive=(myName===activeName); // only the active player answers
   renderQuestion(qData,isInteractive);
 }
 
@@ -1957,7 +1982,7 @@ function showPreRoll() {
 
     const activeName = (state.players[state.currentPlayer]||'').trim().toUpperCase();
     const myName     = (lobbyName||'').trim().toUpperCase();
-    const isMyTurn   = (lobbyRole === 'host') || (myName === activeName);
+    const isMyTurn   = (myName === activeName); // host is just another player
 
     nameEl.textContent = state.players[state.currentPlayer] + "'s turn";
     overlay.classList.add('show');
@@ -2281,8 +2306,9 @@ function buildTopicPills() {
   const container = document.getElementById('topic-pills');
   container.innerHTML = '';
   const topics = Object.keys(QUESTIONS[state.level]);
-  const isActivePlayer = (lobbyRole === 'host') ||
-                         (lobbyName === state.players[state.currentPlayer]);
+  // Only the player whose name matches current turn can interact
+  const isActivePlayer = (lobbyName||'').trim().toUpperCase() ===
+                         (state.players[state.currentPlayer]||'').trim().toUpperCase();
 
   topics.forEach(t => {
     const pill = document.createElement('div');
