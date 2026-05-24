@@ -979,8 +979,11 @@ async function pollGameState() {
     const qId   = gs.questionId || null;
 
     if(phase === 'waiting' || !gs.activeQuestion) {
+      // Always fire startTurnForDevice when transitioning to waiting
+      // (reset lastPhase so the check doesn't get stuck)
       if(state.lastPhase !== 'waiting') {
         state.lastPhase = 'waiting';
+        state.pendingDiceRoll = -1; // reset dice for new turn
         startTurnForDevice();
       }
 
@@ -1000,14 +1003,9 @@ async function pollGameState() {
       if(lobbyRole === 'host') {
         // Host received 'next' signal from a player — execute the turn change
         nextTurn();
-      } else {
-        // Non-host: just show waiting screen
-        hideQuestion();
-        document.getElementById('no-q-msg').style.display = 'block';
-        document.getElementById('no-q-msg').innerHTML =
-          '<div style="font-size:28px;margin-bottom:8px">🔄</div>' +
-          '<div style="font-weight:800;font-size:14px;color:var(--text)">Moving to next turn...</div>';
       }
+      // Non-host devices: do nothing here — wait for Firebase to push
+      // phase:'waiting' (which nextTurn() will set), then startTurnForDevice runs
     }
 
   } catch(e) {}
@@ -1050,20 +1048,8 @@ function applyAnswerResult(result, aqData) {
       : '❌ Wrong! Everyone else +1 step (ignorance wins!)';
     actions.appendChild(banner);
 
-    // Only host sees Next button
-    if(lobbyRole === 'host') {
-      const nextBtn = document.createElement('button');
-      nextBtn.className = 'btn-next';
-      nextBtn.textContent = 'Next Player ▶';
-      nextBtn.style.marginTop = '8px';
-      nextBtn.onclick = nextTurn;
-      actions.appendChild(nextBtn);
-    } else {
-      const wait = document.createElement('div');
-      wait.style.cssText = 'padding:8px;font-size:12px;color:var(--muted);text-align:center;margin-top:4px;font-weight:700';
-      wait.textContent = '⏳ Waiting for host to continue...';
-      actions.appendChild(wait);
-    }
+    // Everyone sees Next btn — host executes, others signal via Firebase
+    addNextBtnOnDevice();
   }
 }
 
@@ -2456,7 +2442,7 @@ function nextTurn() {
   state.currentPlayer = (state.currentPlayer + 1) % total;
   state.currentTopic  = null;
   state.pendingDiceRoll = -1;  // -1 = "not rolled yet" (0 would be falsy)
-  state.lastPhase     = 'waiting';
+  state.lastPhase     = '';    // reset so pollGameState always fires startTurnForDevice
 
   if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState', {
     currentPlayer: state.currentPlayer,
