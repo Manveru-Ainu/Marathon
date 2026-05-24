@@ -715,8 +715,7 @@ body.theme-classic{
         <div class="cp-score-pill" id="cp-score-pill">0 pts</div>
       </div>
 
-      <div class="topic-select-wrap">
-        <button id="random-btn" onclick="pickRandomQuestion()" style="background:linear-gradient(135deg,#FFD700,#FFA500);color:#111;border:none;padding:14px 0;border-radius:14px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;width:100%;display:block;box-shadow:0 6px 20px rgba(255,215,0,.3)">🎲 RANDOM QUESTION</button>
+      <div class="topic-select-wrap" style="display:none" id="topic-select-wrap">
         <div class="topic-pills" id="topic-pills"></div>
       </div>
 
@@ -982,36 +981,7 @@ async function pollGameState() {
     if(phase === 'waiting' || !gs.activeQuestion) {
       if(state.lastPhase !== 'waiting') {
         state.lastPhase = 'waiting';
-        hideQuestion();
-        buildTopicPills();
-
-        const activeName = (state.players[state.currentPlayer]||'').trim().toUpperCase();
-        const myName     = (lobbyName||'').trim().toUpperCase();
-        const isMyTurn   = myName === activeName;
-
-        if(isMyTurn && state.pendingDiceRoll < 1) {
-          // It's my turn — show pre-roll and dice
-          document.getElementById('no-q-msg').style.display = 'block';
-          document.getElementById('no-q-msg').innerHTML =
-            '<div style="font-size:28px;margin-bottom:8px">🎲</div>' +
-            '<div style="font-weight:800;font-size:14px;color:var(--text)">Roll the dice to start your turn!</div>';
-          showPreRoll().then(() => rollDice()).then(rolled => {
-            state.pendingDiceRoll = rolled;
-            if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState',
-              { pendingDiceRoll: rolled }).catch(()=>{});
-            document.getElementById('no-q-msg').innerHTML =
-              '<div style="font-size:32px;margin-bottom:6px">🎲 ' + rolled + ' steps at stake!</div>' +
-              '<div style="font-weight:800;font-size:14px;color:var(--text)">Answer correctly to advance ' + rolled + ' spaces!</div>';
-            buildTopicPills();
-          });
-        } else {
-          // Spectator — wait for active player
-          document.getElementById('no-q-msg').style.display = 'block';
-          document.getElementById('no-q-msg').innerHTML =
-            '<div style="font-size:28px;margin-bottom:8px">⏳</div>' +
-            '<div style="font-weight:800;font-size:14px;color:var(--text)">Waiting for ' +
-            state.players[state.currentPlayer] + ' to roll the dice...</div>';
-        }
+        startTurnForDevice();
       }
 
     } else if(phase === 'question' && qId !== state.lastQuestionId) {
@@ -2212,21 +2182,8 @@ function buildUI() {
   updateCurrentPlayer();
   hideQuestion();
 
-  // Trigger first-turn dice roll (host starts it)
-  if(lobbyRole === 'host') {
-    setTimeout(() => {
-      showPreRoll().then(() => rollDice()).then(total => {
-        state.pendingDiceRoll = total;
-        if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState', {
-          pendingDiceRoll: total
-        }).catch(()=>{});
-        document.getElementById('no-q-msg').innerHTML =
-          '<div style="font-size:32px;margin-bottom:6px">🎲 ' + total + ' steps at stake!</div>' +
-          '<div style="font-weight:800;font-size:14px;color:var(--text)">Answer correctly to advance ' + total + ' spaces!</div>';
-        buildTopicPills();
-      });
-    }, 500);
-  }
+  // Start turn for whoever is active on this device
+  setTimeout(() => startTurnForDevice(), 600);
 }
 
 function buildTrack() {
@@ -2325,18 +2282,7 @@ function buildTopicPills() {
     container.appendChild(pill);
   });
 
-  // Lock/unlock the Random button — only enable after dice are rolled
-  const randBtn = document.getElementById('random-btn');
-  if(randBtn) {
-    const diceReady = state.pendingDiceRoll > 0;
-    const canPlay   = isActivePlayer && diceReady;
-    randBtn.disabled = !canPlay;
-    randBtn.style.opacity = canPlay ? '1' : '0.4';
-    randBtn.style.cursor  = canPlay ? 'pointer' : 'not-allowed';
-    randBtn.textContent   = diceReady
-      ? '🎲 RANDOM QUESTION (' + state.pendingDiceRoll + ' steps)'
-      : '🎲 Roll dice first...';
-  }
+  // No random button — question auto-loads after dice roll
 }
 
 function updateCurrentPlayer() {
@@ -2510,21 +2456,47 @@ function nextTurn() {
     '<div style="font-weight:800;font-size:14px;color:var(--text)">Rolling dice for ' +
     state.players[state.currentPlayer] + '...</div>';
 
-  // Show pre-roll → roll dice → store result → enable random button
-  showPreRoll().then(() => rollDice()).then(rolled => {
-    state.pendingDiceRoll = rolled;
+  // Only the active player's device triggers dice + question
+  startTurnForDevice();
+}
 
-    if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState', {
-      pendingDiceRoll: rolled
-    }).catch(()=>{});
+// Called on every device when a new turn begins (via nextTurn or pollGameState)
+function startTurnForDevice() {
+  const activeName = (state.players[state.currentPlayer]||'').trim().toUpperCase();
+  const myName     = (lobbyName||'').trim().toUpperCase();
+  const isMyTurn   = myName === activeName;
 
+  hideQuestion();
+  buildTopicPills();
+  document.querySelector('.game-main').scrollTop = 0;
+
+  if(isMyTurn) {
+    // MY TURN: show pre-roll, then dice, then auto-load question
+    document.getElementById('no-q-msg').style.display = 'block';
     document.getElementById('no-q-msg').innerHTML =
-      '<div style="font-size:32px;margin-bottom:6px">🎲 ' + rolled + ' steps at stake!</div>' +
-      '<div style="font-weight:800;font-size:14px;color:var(--text)">Answer correctly to advance ' + rolled + ' spaces!</div>';
+      '<div style="font-size:28px;margin-bottom:8px">🎲</div>' +
+      '<div style="font-weight:800;font-size:14px;color:var(--text)">Your turn! Tap to roll the dice.</div>';
 
-    buildTopicPills();
-    document.querySelector('.game-main').scrollTop = 0;
-  });
+    showPreRoll().then(() => rollDice()).then(rolled => {
+      state.pendingDiceRoll = rolled;
+      if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState',
+        { pendingDiceRoll: rolled }).catch(()=>{});
+      // Auto-load a random question immediately after rolling
+      document.getElementById('no-q-msg').innerHTML =
+        '<div style="font-size:32px;margin-bottom:6px">🎲 ' + rolled + ' steps at stake!</div>' +
+        '<div style="font-weight:800;font-size:14px;color:var(--text)">Loading question...</div>';
+      setTimeout(() => pickRandomQuestion(), 400);
+    });
+
+  } else {
+    // NOT MY TURN: show spectator waiting screen
+    document.getElementById('no-q-msg').style.display = 'block';
+    document.getElementById('no-q-msg').innerHTML =
+      '<div style="font-size:36px;margin-bottom:10px">⏳</div>' +
+      '<div style="font-weight:800;font-size:16px;color:var(--text)">' +
+      state.players[state.currentPlayer] + '\'s turn</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-top:6px">Waiting for them to roll and answer...</div>';
+  }
 }
 
 function hideQuestion() {
