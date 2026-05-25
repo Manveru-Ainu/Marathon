@@ -837,6 +837,8 @@ async function joinRoom() {
     lobbyCode = code; lobbyRole = 'player'; lobbyName = name;
     state.level = room.level;
     state.theme = room.theme || 'classic';
+    // Store index hint — will be confirmed when game starts
+    state.myPlayerIndex = -1; // resolved in launchAsPlayer
     showPlayerLobby();
   } catch(e) {
     err.textContent = 'Could not join. Check the code.';
@@ -984,9 +986,9 @@ async function pollGameState() {
     if(phase === 'question' && gs.activeQuestion && newQId !== state.lastQuestionId) {
       state.lastQuestionId = newQId;
       state.lastPhase = 'question';
-      const activeName = (state.players[state.currentPlayer]||'').trim().toUpperCase();
-      const myName     = (lobbyName||'').trim().toUpperCase();
-      renderQuestion(gs.activeQuestion, myName === activeName);
+      // Use index comparison — immune to name casing/spacing issues
+      const isMyTurn = (state.myPlayerIndex === state.currentPlayer);
+      renderQuestion(gs.activeQuestion, isMyTurn);
       return;
     }
 
@@ -1307,17 +1309,13 @@ function showQuestion(topic) {
     if(myName!==activeName) hostWatchForPlayerAnswer();
   }
 
-  const activeName=(state.players[state.currentPlayer]||'').trim().toUpperCase();
-  const myName=(lobbyName||'').trim().toUpperCase();
-  const isInteractive=(myName===activeName); // only the active player answers
-  renderQuestion(qData,isInteractive);
+  const isInteractive = (state.myPlayerIndex === state.currentPlayer);
+  renderQuestion(qData, isInteractive);
 }
 
 function renderSyncedQuestion(aqData) {
-  const activeName=(state.players[state.currentPlayer]||'').trim().toUpperCase();
-  const myName=(lobbyName||'').trim().toUpperCase();
   state.currentQ={q:aqData,topic:aqData.topic,idx:aqData.idx};
-  renderQuestion(aqData, myName===activeName);
+  renderQuestion(aqData, state.myPlayerIndex === state.currentPlayer);
 }
 
 function showNotMyTurnNotice(c) {}
@@ -1354,6 +1352,7 @@ async function hostStartGame() {
   state.theme = lobbyTheme;
   state.TRACK_LENGTH = lobbySize;
   state.gameCode = lobbyCode;
+  state.myPlayerIndex = 0; // host is always player 0
   launchGame();
 }
 
@@ -1365,6 +1364,12 @@ function launchAsPlayer(room) {
   state.theme = room.theme || 'classic';
   state.TRACK_LENGTH = room.boardSize || 30;
   state.gameCode = lobbyCode;
+  // Find this player's index (case-insensitive)
+  const myUpper = (lobbyName||'').trim().toUpperCase();
+  state.myPlayerIndex = allPlayers.findIndex(p =>
+    (p||'').trim().toUpperCase() === myUpper
+  );
+  console.log('My player index:', state.myPlayerIndex, 'name:', lobbyName, 'players:', allPlayers);
   launchGame();
 }
 
@@ -1396,7 +1401,7 @@ function launchGame() {
   // Only PLAYERS poll for game state — host drives, never polls
   if(lobbyRole === 'player') {
     clearInterval(lobbyPollTimer);
-    lobbyPollTimer = setInterval(pollGameState, 1500);
+    lobbyPollTimer = setInterval(pollGameState, 1000);
   }
 }
 
@@ -1890,9 +1895,7 @@ function showPreRoll() {
     const rollBtn = document.getElementById('btn-roll-now');
     const lockMsg = document.getElementById('preroll-lock-msg');
 
-    const activeName = (state.players[state.currentPlayer]||'').trim().toUpperCase();
-    const myName     = (lobbyName||'').trim().toUpperCase();
-    const isMyTurn   = (myName === activeName); // host is just another player
+    const isMyTurn = (state.myPlayerIndex === state.currentPlayer);
 
     nameEl.textContent = state.players[state.currentPlayer] + "'s turn";
     overlay.classList.add('show');
@@ -2064,8 +2067,9 @@ let state = {
   players: [],
   scores: [],
   positions: [],
-  ignorancePos: 0,     // 💀 Ignorance competitor position
-  pendingDiceRoll: 0,  // steps rolled this turn (awaiting answer)
+  ignorancePos: 0,
+  pendingDiceRoll: 0,
+  myPlayerIndex: -1,   // this device's player index (-1 = not set yet)
   currentPlayer: 0,
   gameCode: '',
   usedQuestions: {},
@@ -2218,9 +2222,7 @@ function buildTopicPills() {
   const container = document.getElementById('topic-pills');
   container.innerHTML = '';
   const topics = Object.keys(QUESTIONS[state.level]);
-  // Only the player whose name matches current turn can interact
-  const isActivePlayer = (lobbyName||'').trim().toUpperCase() ===
-                         (state.players[state.currentPlayer]||'').trim().toUpperCase();
+  const isActivePlayer = (state.myPlayerIndex === state.currentPlayer);
 
   topics.forEach(t => {
     const pill = document.createElement('div');
