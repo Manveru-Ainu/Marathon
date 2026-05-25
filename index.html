@@ -1303,10 +1303,8 @@ function showQuestion(topic) {
     fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState',{
       phase:'question',activeQuestion:qData,questionId:qId,answerResult:null,pendingResult:null
     }).catch(()=>{});
-    const activeName=(state.players[state.currentPlayer]||'').trim().toUpperCase();
-    const myName=(lobbyName||'').trim().toUpperCase();
-    // Host watches for player answer whenever it's not the host's own turn
-    if(myName!==activeName) hostWatchForPlayerAnswer();
+    // Host watches for player answer when it's not host's own turn
+    if(state.myPlayerIndex !== state.currentPlayer) hostWatchForPlayerAnswer();
   }
 
   const isInteractive = (state.myPlayerIndex === state.currentPlayer);
@@ -1895,31 +1893,16 @@ function showPreRoll() {
     const rollBtn = document.getElementById('btn-roll-now');
     const lockMsg = document.getElementById('preroll-lock-msg');
 
-    const isMyTurn = (state.myPlayerIndex === state.currentPlayer);
-
+    // HOST always rolls — it's their job to roll for everyone
     nameEl.textContent = state.players[state.currentPlayer] + "'s turn";
     overlay.classList.add('show');
-
-    if(isMyTurn) {
-      rollBtn.style.display = 'block';
-      lockMsg.style.display = 'none';
-      rollBtn.onclick = () => {
-        overlay.classList.remove('show');
-        rollBtn.onclick = null;
-        resolve();
-      };
-    } else {
-      rollBtn.style.display = 'none';
-      lockMsg.style.display = 'block';
-      // Players wait — resolve when host pushes pendingDiceRoll > 0
-      const waitTimer = setInterval(() => {
-        if(state.pendingDiceRoll >= 1) {
-          clearInterval(waitTimer);
-          overlay.classList.remove('show');
-          resolve();
-        }
-      }, 800);
-    }
+    rollBtn.style.display = 'block';
+    lockMsg.style.display = 'none';
+    rollBtn.onclick = () => {
+      overlay.classList.remove('show');
+      rollBtn.onclick = null;
+      resolve();
+    };
   });
 }
 
