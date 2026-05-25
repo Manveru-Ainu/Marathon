@@ -713,6 +713,8 @@ body.theme-classic{
           <div class="cp-name" id="cp-name">—</div>
         </div>
         <div class="cp-score-pill" id="cp-score-pill">0 pts</div>
+        <!-- Host-only skip button -->
+        <button id="skip-player-btn" onclick="showSkipModal()" style="display:none;background:rgba(255,82,82,.15);border:1.5px solid rgba(255,82,82,.5);color:#ff5252;padding:6px 12px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:800;font-size:12px;cursor:pointer;touch-action:manipulation;flex-shrink:0;margin-left:4px">⏭ Skip</button>
       </div>
 
       <div class="topic-select-wrap" style="display:none" id="topic-select-wrap">
@@ -747,6 +749,29 @@ body.theme-classic{
   <!-- RULES TAB -->
   <div class="tab-section" id="rules-tab">
     <div class="rules-wrap" id="rules-content"></div>
+  </div>
+</div>
+
+<!-- Skip / Kick modal (host only) -->
+<div id="skip-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2500;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#1a1a2e;border:1.5px solid #2e2e4e;border-radius:20px;padding:24px;max-width:380px;width:100%;text-align:center">
+    <div style="font-size:36px;margin-bottom:8px">⏭</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:#FFD700;letter-spacing:2px;margin-bottom:6px">SKIP PLAYER</div>
+    <div id="skip-player-name-display" style="font-size:14px;color:#e8e8f0;font-weight:800;margin-bottom:16px"></div>
+
+    <!-- Skip turn only -->
+    <button onclick="skipCurrentTurn()" style="width:100%;background:rgba(255,152,0,.15);border:1.5px solid #FFA500;color:#FFA500;padding:13px;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;cursor:pointer;margin-bottom:10px;touch-action:manipulation">
+      ⏭ SKIP THIS TURN
+      <div style="font-size:10px;font-family:'Nunito',sans-serif;font-weight:700;opacity:.8;margin-top:2px">Player stays in game, loses this turn</div>
+    </button>
+
+    <!-- Kick from game -->
+    <button onclick="kickCurrentPlayer()" style="width:100%;background:rgba(255,82,82,.12);border:1.5px solid #ff5252;color:#ff5252;padding:13px;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;cursor:pointer;margin-bottom:14px;touch-action:manipulation">
+      🚫 REMOVE FROM GAME
+      <div style="font-size:10px;font-family:'Nunito',sans-serif;font-weight:700;opacity:.8;margin-top:2px">Player is removed permanently</div>
+    </button>
+
+    <button onclick="closeSkipModal()" style="background:transparent;border:1px solid #2e2e4e;color:#7070a0;padding:10px;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;cursor:pointer;width:100%;touch-action:manipulation">Cancel</button>
   </div>
 </div>
 
@@ -2286,21 +2311,96 @@ function updateCurrentPlayer() {
   const color = TOKEN_COLORS[state.currentPlayer % TOKEN_COLORS.length];
   document.getElementById('cp-name').textContent = cp;
   document.getElementById('cp-score-pill').textContent = state.scores[state.currentPlayer] + ' pts · Step ' + state.positions[state.currentPlayer];
-  // Color avatar with player's token color
   const av = document.getElementById('cp-avatar');
   if(av) {
     av.textContent = cp[0].toUpperCase();
     av.style.background = color;
     av.style.boxShadow = '0 0 14px ' + color + '88';
   }
-  // Tint the bar border with player color
   const bar = document.getElementById('current-player-bar');
   if(bar) {
     bar.style.borderColor = color;
     bar.style.background = 'linear-gradient(135deg,' + color + '22,' + color + '0a)';
     bar.style.boxShadow = '0 0 30px ' + color + '44, inset 0 0 20px ' + color + '08';
   }
+  // Show skip button only to host
+  const skipBtn = document.getElementById('skip-player-btn');
+  if(skipBtn) skipBtn.style.display = lobbyRole === 'host' ? 'block' : 'none';
   buildScoreboard();
+}
+
+// ── SKIP / KICK FUNCTIONS (host only) ────────────────────────────────────
+function showSkipModal() {
+  if(lobbyRole !== 'host') return;
+  const name = state.players[state.currentPlayer] || 'this player';
+  document.getElementById('skip-player-name-display').textContent =
+    'Player: ' + name + ' (Step ' + state.positions[state.currentPlayer] + ')';
+  document.getElementById('skip-modal').style.display = 'flex';
+}
+
+function closeSkipModal() {
+  document.getElementById('skip-modal').style.display = 'none';
+}
+
+function skipCurrentTurn() {
+  closeSkipModal();
+  // Clear any pending question/answer from Firebase
+  if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState', {
+    phase: 'waiting',
+    activeQuestion: null,
+    questionId: null,
+    answerResult: null,
+    pendingResult: null
+  }).catch(()=>{});
+  // Show feedback
+  showFeedback('⏭ ' + state.players[state.currentPlayer] + '\'s turn skipped!', false);
+  // Wait a moment then advance to next player
+  setTimeout(() => nextTurn(), 1200);
+}
+
+function kickCurrentPlayer() {
+  closeSkipModal();
+  const kickedName = state.players[state.currentPlayer];
+  const kickedIdx  = state.currentPlayer;
+
+  // Remove from all arrays
+  state.players.splice(kickedIdx, 1);
+  state.scores.splice(kickedIdx, 1);
+  state.positions.splice(kickedIdx, 1);
+  state.numPlayers = state.players.length;
+
+  // Recalculate myPlayerIndex for remaining players
+  if(state.myPlayerIndex > kickedIdx) state.myPlayerIndex--;
+  else if(state.myPlayerIndex === kickedIdx) state.myPlayerIndex = 0;
+
+  // If no players left, end game
+  if(state.players.length === 0) { confirmEnd(); return; }
+
+  // Adjust currentPlayer index
+  state.currentPlayer = kickedIdx % state.players.length;
+
+  // Push updated player list to Firebase
+  if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState', {
+    currentPlayer: state.currentPlayer,
+    positions: state.positions,
+    scores: state.scores,
+    kickedPlayer: kickedName,
+    phase: 'waiting',
+    activeQuestion: null,
+    questionId: null,
+    answerResult: null
+  }).catch(()=>{});
+
+  // Rebuild UI with new player list
+  clearTokens();
+  buildTrack();
+  buildScoreboard();
+  updateCurrentPlayer();
+  buildTopicPills();
+  hideQuestion();
+
+  showFeedback('🚫 ' + kickedName + ' removed from game.', false);
+  setTimeout(() => nextTurn(), 1200);
 }
 
 function pickTopic(t) {
