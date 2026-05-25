@@ -1321,6 +1321,51 @@ function checkMC(s,c,e){submitAnswer(s.toString(),c.toString(),c,e,state.current
 function addMarkingButtons(){}
 function playerAnswerMC(s,c,e,o){submitAnswer(s.toString(),c.toString(),c,e,o,'MC');}
 
+// HOST watches Firebase for the active player's answer
+// Polls every 1s until phase:'answered' appears from a non-host player
+function hostWatchForPlayerAnswer() {
+  if(!lobbyCode) return;
+  let attempts = 0;
+  const maxAttempts = 120; // 2 minutes max
+  const t = setInterval(async () => {
+    attempts++;
+    if(!state.gameStarted || state.winnerDeclared || attempts > maxAttempts) {
+      clearInterval(t);
+      return;
+    }
+    try {
+      const gs = await fbGet('/marathon_rooms/'+lobbyCode+'/gameState');
+      if(!gs) return;
+      if(gs.phase === 'answered' && gs.answerResult) {
+        // Got a player answer — resolve it
+        clearInterval(t);
+        // Sync steps from the answer
+        if(gs.answerResult.steps && gs.answerResult.steps > 0) {
+          state.pendingDiceRoll = gs.answerResult.steps;
+        }
+        // Show the question result on host screen too
+        if(gs.activeQuestion) {
+          const {type,opts,ans,exp} = gs.activeQuestion;
+          document.getElementById('question-panel').style.display = 'block';
+          document.getElementById('no-q-msg').style.display = 'none';
+          if(type==='MC'&&opts) {
+            document.querySelectorAll('.mc-opt').forEach((b,i)=>{
+              b.onclick=null; b.style.opacity='1';
+              if(i===ans) b.classList.add('correct');
+            });
+          }
+          document.getElementById('answer-text').textContent =
+            (type==='MC'&&opts)?['A','B','C','D'][ans]+') '+opts[ans]:ans;
+          document.getElementById('explanation-text').textContent = exp||'';
+          document.getElementById('answer-reveal').classList.add('show');
+        }
+        // Award points and show Next btn
+        awardPoints(gs.answerResult.correct);
+      }
+    } catch(e) {}
+  }, 1000);
+}
+
 // HOST: Start the game
 async function hostStartGame() {
   clearInterval(lobbyPollTimer);
