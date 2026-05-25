@@ -986,19 +986,25 @@ async function pollGameState() {
     if(phase === 'question' && gs.activeQuestion && newQId !== state.lastQuestionId) {
       state.lastQuestionId = newQId;
       state.lastPhase = 'question';
-      // Use index comparison — immune to name casing/spacing issues
-      const isMyTurn = (state.myPlayerIndex === state.currentPlayer);
-      renderQuestion(gs.activeQuestion, isMyTurn);
+      // Players render it; host already has it on screen
+      if(lobbyRole !== 'host') {
+        const isMyTurn = (state.myPlayerIndex === state.currentPlayer);
+        renderQuestion(gs.activeQuestion, isMyTurn);
+      }
       return;
     }
 
-    // Player answered — show result banner
+    // Answer received — handle based on role
     if(phase === 'answered' && gs.answerResult && state.lastPhase !== 'answered') {
       state.lastPhase = 'answered';
       const steps = gs.answerResult.steps || state.pendingDiceRoll || 2;
-      // Show answer reveal
+      if(gs.answerResult.steps > 0) state.pendingDiceRoll = gs.answerResult.steps;
+
+      // Show answer on screen for everyone
       if(gs.activeQuestion) {
         const {type,opts,ans,exp} = gs.activeQuestion;
+        document.getElementById('question-panel').style.display='block';
+        document.getElementById('no-q-msg').style.display='none';
         if(type==='MC'&&opts) document.querySelectorAll('.mc-opt').forEach((b,i)=>{
           b.onclick=null; b.style.opacity='1';
           if(i===ans) b.classList.add('correct');
@@ -1007,33 +1013,41 @@ async function pollGameState() {
           (type==='MC'&&opts)?['A','B','C','D'][ans]+') '+opts[ans]:ans;
         document.getElementById('explanation-text').textContent = exp||'';
         document.getElementById('answer-reveal').classList.add('show');
-        document.getElementById('question-panel').style.display='block';
       }
-      const actions = document.getElementById('q-actions');
-      if(actions) {
-        actions.innerHTML='';
-        const banner=document.createElement('div');
-        banner.style.cssText='padding:12px;border-radius:10px;font-weight:800;font-size:14px;text-align:center;'
-          +(gs.answerResult.correct?'background:rgba(0,230,118,.15);border:1.5px solid var(--green);color:var(--green)':'background:rgba(255,82,82,.1);border:1.5px solid var(--red);color:var(--red)');
-        banner.textContent=gs.answerResult.correct?'🎉 Correct! +'+steps+' steps!':'❌ Wrong! 💀 Ignorance +'+steps+'!';
-        actions.appendChild(banner);
-        const w=document.createElement('div');
-        w.style.cssText='padding:8px;font-size:12px;color:var(--muted);text-align:center;font-weight:700';
-        w.textContent='⏳ Waiting for host...';
-        actions.appendChild(w);
+
+      if(lobbyRole === 'host') {
+        // HOST: award points + show Next btn
+        awardPoints(gs.answerResult.correct);
+      } else {
+        // PLAYERS: show result banner + waiting msg
+        const actions = document.getElementById('q-actions');
+        if(actions) {
+          actions.innerHTML='';
+          const banner=document.createElement('div');
+          banner.style.cssText='padding:12px;border-radius:10px;font-weight:800;font-size:14px;text-align:center;'
+            +(gs.answerResult.correct?'background:rgba(0,230,118,.15);border:1.5px solid var(--green);color:var(--green)':'background:rgba(255,82,82,.1);border:1.5px solid var(--red);color:var(--red)');
+          banner.textContent=gs.answerResult.correct?'🎉 Correct! +'+steps+' steps!':'❌ Wrong! 💀 Ignorance +'+steps+'!';
+          actions.appendChild(banner);
+          const w=document.createElement('div');
+          w.style.cssText='padding:8px;font-size:12px;color:var(--muted);text-align:center;font-weight:700';
+          w.textContent='⏳ Waiting for host...';
+          actions.appendChild(w);
+        }
       }
       return;
     }
 
-    // Waiting — show spectator screen
+    // Waiting — players show spectator screen; host ignores (controls its own UI)
     if(phase === 'waiting' && state.lastPhase !== 'waiting') {
       state.lastPhase = 'waiting';
-      hideQuestion();
-      document.getElementById('no-q-msg').style.display='block';
-      document.getElementById('no-q-msg').innerHTML=
-        '<div style="font-size:36px;margin-bottom:10px">⏳</div>'+
-        '<div style="font-weight:800;font-size:16px;color:var(--text)">'+(state.players[state.currentPlayer]||'')+"'s turn</div>"+
-        '<div style="font-size:12px;color:var(--muted);margin-top:6px">Waiting for question...</div>';
+      if(lobbyRole !== 'host') {
+        hideQuestion();
+        document.getElementById('no-q-msg').style.display='block';
+        document.getElementById('no-q-msg').innerHTML=
+          '<div style="font-size:36px;margin-bottom:10px">⏳</div>'+
+          '<div style="font-weight:800;font-size:16px;color:var(--text)">'+(state.players[state.currentPlayer]||'')+"'s turn</div>"+
+          '<div style="font-size:12px;color:var(--muted);margin-top:6px">Waiting for question...</div>';
+      }
       return;
     }
 
@@ -1303,8 +1317,7 @@ function showQuestion(topic) {
     fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState',{
       phase:'question',activeQuestion:qData,questionId:qId,answerResult:null,pendingResult:null
     }).catch(()=>{});
-    // Host watches for player answer when it's not host's own turn
-    if(state.myPlayerIndex !== state.currentPlayer) hostWatchForPlayerAnswer();
+    // Host will detect answer via pollGameState
   }
 
   const isInteractive = (state.myPlayerIndex === state.currentPlayer);
@@ -1441,11 +1454,9 @@ function launchGame() {
   document.getElementById('game').classList.add('on');
   buildUI();
 
-  // Only PLAYERS poll for game state — host drives, never polls
-  if(lobbyRole === 'player') {
-    clearInterval(lobbyPollTimer);
-    lobbyPollTimer = setInterval(pollGameState, 1000);
-  }
+  // EVERYONE polls — host and players both watch Firebase
+  clearInterval(lobbyPollTimer);
+  lobbyPollTimer = setInterval(pollGameState, 1000);
 }
 
 // ===========================
@@ -2425,7 +2436,7 @@ function nextTurn() {
   state.currentPlayer   = nextPlayer;
   state.pendingDiceRoll = -1;
   state.lastQuestionId  = null;
-  state.lastPhase       = 'waiting';
+  state.lastPhase       = ''; // reset so poll fires on next 'waiting'
 
   if(lobbyCode) fbUpdate('/marathon_rooms/'+lobbyCode+'/gameState', {
     currentPlayer: nextPlayer,
