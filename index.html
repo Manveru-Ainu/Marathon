@@ -19,6 +19,19 @@ input, button, select, textarea {
 }
 /* Safe area for iPhone notch */
 body { padding-bottom:env(safe-area-inset-bottom); }
+
+/* Lobby input placeholders — always visible */
+#host-name-inp::placeholder,
+#player-name-inp::placeholder { color:rgba(255,255,255,.55) !important; }
+#room-code-inp::placeholder { color:rgba(255,214,10,.55) !important; }
+#host-name-inp, #player-name-inp {
+  color:#fff !important;
+  -webkit-text-fill-color:#fff !important;
+}
+#room-code-inp {
+  color:#FFD60A !important;
+  -webkit-text-fill-color:#FFD60A !important;
+}
 :root{
   /* ── Marathon vivid palette ── */
   --red:    #FF3B30;
@@ -527,21 +540,21 @@ body.theme-classic{--gold:#FF9500;--gold2:#FF6B00;--orange:#FF9500;
 <body>
 
 <!-- ==================== ROOM / LOBBY SCREEN ==================== -->
-<div id="room-screen" style="display:flex;position:fixed;inset:0;background:linear-gradient(135deg,#0a0a14 0%,#12082a 50%,#0a1428 100%);z-index:1000;align-items:center;justify-content:flex-start;flex-direction:column;overflow-y:auto;padding:24px 16px 48px;text-align:center">
+<div id="room-screen" style="display:flex;position:fixed;inset:0;background:linear-gradient(160deg,#1C1C8A 0%,#3A0CA3 45%,#7B2FBE 100%);z-index:1000;align-items:center;justify-content:flex-start;flex-direction:column;overflow-y:auto;padding:24px 16px 48px;text-align:center">
 
   <!-- Logo -->
-  <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(44px,12vw,88px);background:linear-gradient(135deg,#FFD700,#FFA500,#ff6b35);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:4px;line-height:1;margin-bottom:4px;filter:drop-shadow(0 0 40px rgba(255,180,0,.35))">ENGLISH<br>MARATHON</div>
-  <div style="color:#7070a0;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-bottom:24px">🏃 The English Language Race</div>
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(44px,12vw,88px);background:linear-gradient(135deg,#FFD60A,#FF9500,#FF3B30);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:4px;line-height:1;margin-bottom:4px;filter:drop-shadow(0 4px 20px rgba(255,149,0,.6))">ENGLISH<br>MARATHON</div>
+  <div style="color:rgba(255,255,255,.75);font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-bottom:24px">🏃 The English Language Race</div>
 
   <!-- HOST card -->
-  <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:24px;max-width:440px;width:100%;margin-bottom:14px">
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FFD700;letter-spacing:2px;margin-bottom:16px">🎙 I AM THE HOST (Teacher)</div>
-    <input id="host-name-inp" placeholder="YOUR NAME" maxlength="20" autocorrect="off" autocapitalize="characters" style="background:#0d0d20;border:2px solid #2e2e4e;color:#e8e8f0;padding:12px 14px;border-radius:12px;font-size:15px;font-family:'Nunito',sans-serif;font-weight:700;width:100%;outline:none;margin-bottom:10px;text-align:center;letter-spacing:2px;text-transform:uppercase;box-sizing:border-box" oninput="this.value=this.value.toUpperCase()">
+  <div style="background:rgba(255,255,255,.13);border:1.5px solid rgba(255,255,255,.3);border-radius:22px;padding:24px;max-width:440px;width:100%;margin-bottom:14px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FFD60A;letter-spacing:2px;margin-bottom:16px;background:rgba(255,214,10,.15);padding:8px 14px;border-radius:10px;border:1px solid rgba(255,214,10,.35)">🎙 I AM THE HOST (Teacher)</div>
+    <input id="host-name-inp" placeholder="YOUR NAME" maxlength="20" autocorrect="off" autocapitalize="characters" style="background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);color:#fff;padding:12px 14px;border-radius:12px;font-size:15px;font-family:'Nunito',sans-serif;font-weight:700;width:100%;outline:none;margin-bottom:10px;text-align:center;letter-spacing:2px;text-transform:uppercase;box-sizing:border-box" oninput="this.value=this.value.toUpperCase()">
 
     <!-- Level & Theme row -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div>
-        <div style="font-size:10px;color:#7070a0;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Level</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Level</div>
         <div style="display:flex;gap:6px">
           <button class="lobby-lvl-btn" id="llvl-A" onclick="setLobbyLevel('A')">A</button>
           <button class="lobby-lvl-btn" id="llvl-B" onclick="setLobbyLevel('B')">B</button>
@@ -549,7 +562,7 @@ body.theme-classic{--gold:#FF9500;--gold2:#FF6B00;--orange:#FF9500;
         </div>
       </div>
       <div>
-        <div style="font-size:10px;color:#7070a0;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Theme</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Theme</div>
         <div style="display:flex;gap:6px">
           <button class="lobby-theme-btn on" id="ltheme-classic" onclick="setLobbyTheme('classic')" title="Classic">🏆</button>
           <button class="lobby-theme-btn" id="ltheme-ocean" onclick="setLobbyTheme('ocean')" title="Ocean">🌊</button>
@@ -560,19 +573,19 @@ body.theme-classic{--gold:#FF9500;--gold2:#FF6B00;--orange:#FF9500;
 
     <!-- Board size row -->
     <div style="margin-bottom:10px">
-      <div style="font-size:10px;color:#7070a0;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">🗺️ Board Size</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">🗺️ Board Size</div>
       <div style="display:flex;gap:8px">
         <button class="lobby-size-btn on" id="lsize-30" onclick="setLobbySize(30)">
-          <span style="font-family:'Bebas Neue',sans-serif;font-size:20px">30</span>
-          <span style="font-size:9px;display:block;color:#7070a0">Quick</span>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#fff">30</span>
+          <span style="font-size:9px;display:block;color:rgba(255,255,255,.8)">Quick</span>
         </button>
         <button class="lobby-size-btn" id="lsize-50" onclick="setLobbySize(50)">
-          <span style="font-family:'Bebas Neue',sans-serif;font-size:20px">50</span>
-          <span style="font-size:9px;display:block;color:#7070a0">Standard</span>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#fff">50</span>
+          <span style="font-size:9px;display:block;color:rgba(255,255,255,.8)">Standard</span>
         </button>
         <button class="lobby-size-btn" id="lsize-70" onclick="setLobbySize(70)">
-          <span style="font-family:'Bebas Neue',sans-serif;font-size:20px">70</span>
-          <span style="font-size:9px;display:block;color:#7070a0">Marathon</span>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#fff">70</span>
+          <span style="font-size:9px;display:block;color:rgba(255,255,255,.8)">Marathon</span>
         </button>
       </div>
     </div>
@@ -581,33 +594,33 @@ body.theme-classic{--gold:#FF9500;--gold2:#FF6B00;--orange:#FF9500;
     <div id="create-err" style="color:#ff5252;font-size:12px;min-height:14px"></div>
   </div>
 
-  <div style="color:#7070a0;font-size:12px;margin:2px 0">— or —</div>
+  <div style="color:rgba(255,255,255,.5);font-size:13px;margin:6px 0;font-weight:700;letter-spacing:2px">— or —</div>
 
   <!-- PLAYER card -->
-  <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:24px;max-width:440px;width:100%;margin-top:12px;margin-bottom:14px">
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#40c4ff;letter-spacing:2px;margin-bottom:16px">🎮 I AM A PLAYER (Student)</div>
-    <input id="player-name-inp" placeholder="YOUR NAME" maxlength="20" autocorrect="off" autocapitalize="characters" style="background:#0d0d20;border:2px solid #2e2e4e;color:#e8e8f0;padding:12px 14px;border-radius:12px;font-size:15px;font-family:'Nunito',sans-serif;font-weight:700;width:100%;outline:none;margin-bottom:10px;text-align:center;letter-spacing:2px;text-transform:uppercase;box-sizing:border-box" oninput="this.value=this.value.toUpperCase()">
-    <input id="room-code-inp" placeholder="ROOM CODE (6 letters)" maxlength="6" autocorrect="off" autocapitalize="characters" style="background:#0d0d20;border:2px solid #2e2e4e;color:#FFD700;padding:12px 14px;border-radius:12px;font-size:18px;font-family:'Bebas Neue',sans-serif;letter-spacing:6px;width:100%;outline:none;margin-bottom:10px;text-align:center;text-transform:uppercase;box-sizing:border-box" oninput="this.value=this.value.toUpperCase()">
+  <div style="background:rgba(255,255,255,.13);border:1.5px solid rgba(255,255,255,.3);border-radius:22px;padding:24px;max-width:440px;width:100%;margin-top:12px;margin-bottom:14px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#60D0FF;letter-spacing:2px;margin-bottom:16px;background:rgba(0,122,255,.2);padding:8px 14px;border-radius:10px;border:1px solid rgba(96,208,255,.35)">🎮 I AM A PLAYER (Student)</div>
+    <input id="player-name-inp" placeholder="YOUR NAME" maxlength="20" autocorrect="off" autocapitalize="characters" style="background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);color:#fff;padding:12px 14px;border-radius:12px;font-size:15px;font-family:'Nunito',sans-serif;font-weight:700;width:100%;outline:none;margin-bottom:10px;text-align:center;letter-spacing:2px;text-transform:uppercase;box-sizing:border-box" oninput="this.value=this.value.toUpperCase()">
+    <input id="room-code-inp" placeholder="ROOM CODE (6 letters)" maxlength="6" autocorrect="off" autocapitalize="characters" style="background:rgba(255,255,255,.2);border:2px solid rgba(255,214,10,.6);color:#FFD60A;padding:12px 14px;border-radius:12px;font-size:18px;font-family:'Bebas Neue',sans-serif;letter-spacing:6px;width:100%;outline:none;margin-bottom:10px;text-align:center;text-transform:uppercase;box-sizing:border-box" oninput="this.value=this.value.toUpperCase()">
     <button onclick="joinRoom()" style="background:linear-gradient(135deg,#40c4ff,#0091ea);color:#fff;border:none;padding:13px 0;border-radius:14px;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;cursor:pointer;width:100%;touch-action:manipulation;margin-bottom:6px">🚀 Join Game</button>
     <div id="join-err" style="color:#ff5252;font-size:12px;min-height:14px"></div>
   </div>
 
-  <div style="color:#7070a0;font-size:11px;cursor:pointer;text-decoration:underline;margin-top:4px" onclick="openSetupRules()">📋 How to play? Rules</div>
+  <div style="color:rgba(255,255,255,.6);font-size:11px;cursor:pointer;text-decoration:underline;margin-top:4px" onclick="openSetupRules()">📋 How to play? Rules</div>
 </div>
 
 <!-- Lobby waiting room (shown after creating/joining) -->
-<div id="lobby-waiting" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0a0a14,#12082a);z-index:1000;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:24px 16px 48px;text-align:center">
+<div id="lobby-waiting" style="display:none;position:fixed;inset:0;background:linear-gradient(160deg,#1C1C8A 0%,#3A0CA3 45%,#7B2FBE 100%);z-index:1000;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:24px 16px 48px;text-align:center">
 
   <!-- Host view -->
   <div id="lobby-host-view" style="display:none;max-width:460px;width:100%">
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:#FFD700;letter-spacing:3px;margin-bottom:4px">🎙 YOUR GAME ROOM</div>
-    <div style="color:#7070a0;font-size:12px;margin-bottom:20px">Share the code — players join from their devices</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:#FFD60A;letter-spacing:3px;margin-bottom:4px">🎙 YOUR GAME ROOM</div>
+    <div style="color:rgba(255,255,255,.7);font-size:12px;margin-bottom:20px">Share the code — players join from their devices</div>
 
     <!-- The BIG code -->
-    <div style="background:rgba(255,215,0,.07);border:2px solid rgba(255,215,0,.3);border-radius:20px;padding:20px 24px;margin-bottom:16px">
-      <div style="font-size:11px;color:#7070a0;font-weight:800;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">GAME CODE</div>
-      <div id="lobby-code-big" style="font-family:'Bebas Neue',sans-serif;font-size:64px;letter-spacing:12px;color:#FFD700;filter:drop-shadow(0 0 24px rgba(255,215,0,.5))">------</div>
-      <button onclick="copyLobbyCode()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#e8e8f0;padding:8px 20px;border-radius:20px;font-family:'Nunito',sans-serif;font-weight:800;font-size:12px;cursor:pointer;margin-top:10px;touch-action:manipulation">📋 Copy Code</button>
+    <div style="background:rgba(255,255,255,.15);border:2px solid rgba(255,214,10,.5);border-radius:20px;padding:20px 24px;margin-bottom:16px;backdrop-filter:blur(8px)">
+      <div style="font-size:11px;color:rgba(255,255,255,.7);font-weight:800;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">GAME CODE</div>
+      <div id="lobby-code-big" style="font-family:'Bebas Neue',sans-serif;font-size:64px;letter-spacing:12px;color:#FFD60A;filter:drop-shadow(0 0 24px rgba(255,214,10,.7))">------</div>
+      <button onclick="copyLobbyCode()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:8px 20px;border-radius:20px;font-family:'Nunito',sans-serif;font-weight:800;font-size:12px;cursor:pointer;margin-top:10px;touch-action:manipulation">📋 Copy Code</button>
     </div>
 
     <!-- Config summary -->
@@ -618,62 +631,62 @@ body.theme-classic{--gold:#FF9500;--gold2:#FF6B00;--orange:#FF9500;
     </div>
 
     <!-- Players list -->
-    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:16px;overflow:hidden;margin-bottom:16px">
-      <div style="padding:10px 16px;font-size:11px;font-weight:800;color:#7070a0;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:center">
+    <div style="background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.25);border-radius:16px;overflow:hidden;margin-bottom:16px;backdrop-filter:blur(8px)">
+      <div style="padding:10px 16px;font-size:11px;font-weight:800;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid rgba(255,255,255,.15);display:flex;justify-content:space-between;align-items:center">
         <span>👥 Players in lobby</span>
-        <span id="lobby-player-count" style="color:#FFD700">0 players</span>
+        <span id="lobby-player-count" style="color:#FFD60A;font-weight:800">0 players</span>
       </div>
       <div id="lobby-players-list" style="padding:10px;min-height:60px;display:flex;flex-direction:column;gap:6px">
-        <div style="color:#7070a0;font-size:12px;padding:12px;font-style:italic">Waiting for players to join...</div>
+        <div style="color:rgba(255,255,255,.5);font-size:12px;padding:12px;font-style:italic">Waiting for players to join...</div>
       </div>
     </div>
 
     <!-- Start button — enabled when ≥1 player joined -->
     <button id="lobby-start-btn" onclick="hostStartGame()" disabled style="background:linear-gradient(135deg,#FFD700,#FFA500);color:#111;border:none;padding:16px 0;border-radius:50px;font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;cursor:pointer;width:100%;touch-action:manipulation;box-shadow:0 8px 30px rgba(255,215,0,.3);opacity:.4;transition:.2s">🏁 START MARATHON!</button>
-    <div style="color:#7070a0;font-size:11px;margin-top:8px" id="lobby-start-hint">Waiting for at least 1 player to join...</div>
-    <button onclick="cancelLobby()" style="background:transparent;border:1px solid rgba(255,82,82,.3);color:#ff5252;padding:10px 0;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;cursor:pointer;width:100%;margin-top:10px;touch-action:manipulation">✕ Cancel Room</button>
+    <div style="color:rgba(255,255,255,.6);font-size:11px;margin-top:8px" id="lobby-start-hint">Waiting for at least 1 player to join...</div>
+    <button onclick="cancelLobby()" style="background:rgba(255,59,48,.15);border:1.5px solid rgba(255,59,48,.4);color:#FF6B6B;padding:10px 0;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;cursor:pointer;width:100%;margin-top:10px;touch-action:manipulation">✕ Cancel Room</button>
   </div>
 
   <!-- Player view -->
   <div id="lobby-player-view" style="display:none;max-width:460px;width:100%">
     <div style="font-size:60px;margin-bottom:12px;animation:bounce2 1.5s infinite">⏳</div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:#40c4ff;letter-spacing:2px;margin-bottom:6px">YOU'RE IN THE LOBBY!</div>
-    <div id="player-lobby-name" style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FFD700;margin-bottom:16px"></div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:#60D0FF;letter-spacing:2px;margin-bottom:6px">YOU'RE IN THE LOBBY!</div>
+    <div id="player-lobby-name" style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FFD60A;margin-bottom:16px"></div>
     <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:18px;margin-bottom:16px">
       <div style="font-size:11px;color:#7070a0;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Room Code</div>
-      <div id="player-lobby-code" style="font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:8px;color:#FFD700">------</div>
+      <div id="player-lobby-code" style="font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:8px;color:#FFD60A;filter:drop-shadow(0 0 16px rgba(255,214,10,.5))">------</div>
     </div>
-    <div id="lobby-player-list-player" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;margin-bottom:14px;min-height:60px">
-      <div style="font-size:11px;color:#7070a0;font-weight:800;text-transform:uppercase;margin-bottom:8px">In this room:</div>
+    <div id="lobby-player-list-player" style="background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.25);border-radius:12px;padding:12px;margin-bottom:14px;min-height:60px">
+      <div style="font-size:11px;color:rgba(255,255,255,.7);font-weight:800;text-transform:uppercase;margin-bottom:8px">In this room:</div>
       <div id="lobby-players-list-player" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
-    <div style="color:#7070a0;font-size:13px;padding:12px;background:rgba(255,255,255,.03);border-radius:10px">
+    <div style="color:rgba(255,255,255,.8);font-size:13px;padding:12px;background:rgba(255,255,255,.12);border-radius:10px;">
       🕐 Waiting for the Host to start the game...
     </div>
-    <button onclick="cancelLobby()" style="background:transparent;border:1px solid rgba(255,82,82,.3);color:#ff5252;padding:10px 0;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;cursor:pointer;width:100%;margin-top:14px;touch-action:manipulation">← Leave Room</button>
+    <button onclick="cancelLobby()" style="background:rgba(255,59,48,.15);border:1.5px solid rgba(255,100,100,.5);color:#FF8A80;padding:10px 0;border-radius:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;cursor:pointer;width:100%;margin-top:14px;touch-action:manipulation">← Leave Room</button>
   </div>
 </div>
 
 <style>
 @keyframes bounce2{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
 .lobby-lvl-btn{
-  flex:1;padding:10px 4px;border-radius:10px;border:2px solid #2e2e4e;
-  background:#1a1a2e;cursor:pointer;font-family:'Bebas Neue',sans-serif;
-  font-size:16px;color:#7070a0;touch-action:manipulation;transition:.15s;
+  flex:1;padding:10px 4px;border-radius:10px;border:2px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.1);cursor:pointer;font-family:'Bebas Neue',sans-serif;
+  font-size:16px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.3);touch-action:manipulation;transition:.15s;
 }
-.lobby-lvl-btn.on{border-color:#FFD700;color:#FFD700;background:rgba(255,215,0,.1)}
+.lobby-lvl-btn.on{border-color:#FFD60A;color:#FFD60A;background:rgba(255,214,10,.2);box-shadow:0 0 14px rgba(255,214,10,.35)}
 .lobby-theme-btn{
-  flex:1;padding:8px 4px;border-radius:10px;border:2px solid #2e2e4e;
-  background:#1a1a2e;cursor:pointer;font-size:18px;touch-action:manipulation;transition:.15s;
+  flex:1;padding:8px 4px;border-radius:10px;border:2px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.1);cursor:pointer;font-size:18px;touch-action:manipulation;transition:.15s;
 }
-.lobby-theme-btn.on{border-color:#FFD700;background:rgba(255,215,0,.12);box-shadow:0 0 12px rgba(255,215,0,.2)}
+.lobby-theme-btn.on{border-color:#FFD60A;background:rgba(255,214,10,.2);box-shadow:0 0 14px rgba(255,214,10,.35)}
 .lobby-size-btn{
-  flex:1;padding:10px 4px;border-radius:10px;border:2px solid #2e2e4e;
-  background:#1a1a2e;cursor:pointer;text-align:center;touch-action:manipulation;transition:.15s;
-  color:#7070a0;
+  flex:1;padding:10px 4px;border-radius:10px;border:2px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.1);cursor:pointer;text-align:center;touch-action:manipulation;transition:.15s;
+  color:#fff;
 }
-.lobby-size-btn.on{border-color:#FFD700;background:rgba(255,215,0,.1);color:#FFD700}
-.lobby-size-btn.on span{color:#FFD700!important}
+.lobby-size-btn.on{border-color:#FFD60A;background:rgba(255,214,10,.2);color:#FFD60A;box-shadow:0 0 14px rgba(255,214,10,.35)}
+.lobby-size-btn.on span{color:#FFD60A!important}
 </style>
 
 
@@ -965,9 +978,9 @@ function startHostPolling() {
       const list = document.getElementById('lobby-players-list');
       document.getElementById('lobby-player-count').textContent = names.length + (names.length===1?' player':' players');
       if(names.length === 0) {
-        list.innerHTML = '<div style="color:#7070a0;font-size:12px;padding:12px;font-style:italic">Waiting for players to join...</div>';
+        list.innerHTML = '<div style="color:rgba(255,255,255,.5);font-size:12px;padding:12px;font-style:italic">Waiting for players to join...</div>';
       } else {
-        list.innerHTML = names.map(n=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px"><span style="font-size:16px">👤</span><span style="font-weight:800;font-size:13px;color:#e8e8f0">${n}</span><span style="color:#00e676;font-size:10px;font-weight:700;margin-left:auto">READY ✓</span></div>`).join('');
+        list.innerHTML = names.map(n=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,255,255,.15);border-radius:8px"><span style="font-size:16px">👤</span><span style="font-weight:800;font-size:13px;color:#fff">${n}</span><span style="color:#00e676;font-size:10px;font-weight:700;margin-left:auto">READY ✓</span></div>`).join('');
       }
       // Enable start when there's at least 1 player
       const btn = document.getElementById('lobby-start-btn');
