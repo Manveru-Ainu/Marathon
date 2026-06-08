@@ -182,6 +182,20 @@
   .ign-info .bar i{display:block;height:100%;background:linear-gradient(90deg,#ff8c42,#c7341d);transition:width .25s;}
   .sec-tag{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
   .roll-note{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+  .qmodal{position:fixed;inset:0;background:rgba(13,20,25,.6);display:none;align-items:center;justify-content:center;z-index:60;padding:18px;}
+  .qmodal.on{display:flex;}
+  .qmodal-card{background:#fff;border:5px solid var(--ink);border-radius:24px;max-width:660px;width:100%;padding:26px;box-shadow:0 24px 70px rgba(0,0,0,.5);}
+  .qm-badge{display:inline-flex;align-items:center;gap:7px;font-weight:800;font-size:14px;padding:7px 13px;border-radius:999px;color:#15202e;margin-bottom:8px;}
+  .qm-tag{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;}
+  .qm-roll{font-size:13.5px;font-weight:800;color:var(--ink);margin:6px 0 16px;}
+  .qm-q{font-size:clamp(20px,2.6vw,28px);font-weight:800;line-height:1.3;margin-bottom:18px;}
+  .qm-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:540px){.qm-opts{grid-template-columns:1fr;}}
+  .qm-opt{font-family:'Baloo 2';font-weight:800;font-size:17px;border:3px solid var(--ink);background:#fff;color:var(--ink);border-radius:14px;padding:15px 16px;cursor:pointer;text-align:left;box-shadow:0 4px 0 rgba(0,0,0,.14);transition:.1s;}
+  .qm-opt:hover:not([disabled]){border-color:var(--gold);transform:translateY(-1px);}
+  .qm-opt:active:not([disabled]){transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.14);}
+  .qm-opt[disabled]{opacity:.55;cursor:default;}
+  .qm-wait{margin-top:16px;font-weight:800;color:var(--muted);text-align:center;font-size:14px;}
 </style>
 <div class="wrap">
   <header class="top">
@@ -282,6 +296,7 @@
 
   <div class="winbar" id="winbar" style="margin-top:14px"></div>
 </div>
+<div class="qmodal" id="qModal"><div class="qmodal-card" id="qModalCard"></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -411,27 +426,34 @@ function render(){if(!view)return;
   else if(view.busy)document.getElementById('turnSub').textContent='Running…';
   else if(view.pending)document.getElementById('turnSub').textContent='Answering…';
   else document.getElementById('turnSub').textContent=cp.isCPU?'CPU is thinking…':(isMine(view.current)?'Your turn — roll!':'Waiting for '+cp.name);
-  renderPrompt();}
+  renderPrompt();updateModal();}
 function flash(pos){const sq=document.getElementById('sq'+pos);if(sq){sq.classList.add('passing');setTimeout(()=>sq.classList.remove('passing'),320);}}
 function isMine(seat){if(mode==='online')return seat===mySeat;return !view.players[seat].isCPU;}
 function showWin(){const wb=document.getElementById('winbar');wb.style.display='flex';
-  if(view.winner===-1){wb.style.background='linear-gradient(90deg,#15202e,#c7341d)';wb.innerHTML='🧠 The Ignorance wins — everyone was caught!';}
+  if(view.winner===-1){wb.style.background='linear-gradient(90deg,#15202e,#c7341d)';wb.innerHTML='🧠 The Ignorance reached the finish first — nobody outran it!';}
   else{const w=view.players[view.winner];wb.style.background=`linear-gradient(90deg, ${w.color}, var(--gold))`;wb.innerHTML=`🏆 ${w.name} wins the marathon!`;}}
 const pr=()=>document.getElementById('prompt');
 const badge=cat=>`<span class="badge" style="background:${CAT[cat].color};color:#15202e">${CAT[cat].ico} ${CAT[cat].name}</span>`;
 function renderPrompt(){const pn=view.pending;
   if(view.won){pr().innerHTML='<p class="hint">Race over — open the Menu to play again.</p>';return;}
   if(!pn){pr().innerHTML=`<p class="hint">${view.busy?'Running…':'Roll the die to move.'}</p>`;return;}
-  const who=view.players[pn.forSeat].name;
-  if(!(isMine(pn.forSeat)&&!view.players[pn.forSeat].isCPU)){pr().innerHTML=`<p class="waiting-note">⏳ ${who} is answering…</p>`;return;}
-  const tag=`Level ${pn.q.lvl} · ${pn.q.s}`;
-  pr().innerHTML=`${pn.cat?badge(pn.cat):''}<div class="sec-tag">${tag}</div>
-    <div class="roll-note">🎲 Rolled ${pn.die} — answer right to reach square ${pn.target>N?'FINISH':pn.target}. Wrong = the Ignorance advances!</div>
-    <div class="q-card"><div class="qtext">${pn.q.p}</div><div class="opts">${pn.q.o.map((o,ix)=>`<button class="opt" onclick="uiAnswer(${ix})">${o}</button>`).join('')}</div></div>`;}
+  pr().innerHTML='<p class="hint">📺 Question is on screen — pick an answer.</p>';}
+function updateModal(){const m=document.getElementById('qModal');const pn=view&&view.pending;
+  if(!pn||pn.stage!=='question'||view.won){m.classList.remove('on');document.getElementById('qModalCard').innerHTML='';return;}
+  const who=view.players[pn.forSeat],mine=isMine(pn.forSeat)&&!who.isCPU;
+  const tag=`Level ${pn.q.lvl} · ${pn.q.s} · ${who.name}'s turn`;
+  document.getElementById('qModalCard').innerHTML=
+    `${pn.cat?`<span class="qm-badge" style="background:${CAT[pn.cat].color}">${CAT[pn.cat].ico} ${CAT[pn.cat].name}</span>`:''}
+     <div class="qm-tag">${tag}</div>
+     <div class="qm-roll">🎲 Rolled ${pn.die} → reach square ${pn.target>N?'FINISH':pn.target} if correct. Wrong = the Ignorance advances 🏃</div>
+     <div class="qm-q">${pn.q.p}</div>
+     <div class="qm-opts">${pn.q.o.map((o,ix)=>`<button class="opt qm-opt" ${mine?`onclick="uiAnswer(${ix})"`:'disabled'}>${String.fromCharCode(65+ix)})&nbsp; ${o}</button>`).join('')}</div>
+     ${mine?'':`<div class="qm-wait">${who.isCPU?'🤖 '+who.name+' is answering…':'⏳ Waiting for '+who.name+'…'}</div>`}`;
+  m.classList.add('on');}
 
 function act(a,seat){if(mode==='online'&&!iAmHost){conns[0]&&conns[0].open&&conns[0].send({type:'action',act:Object.assign({},a)});}else hostAction(seat,a);}
-function uiRoll(){act({kind:'roll'},view.current);}
-function uiAnswer(ix){act({kind:'answer',idx:ix},view.pending.forSeat);}
+function uiRoll(){if(!view||view.pending||view.busy||view.won)return;act({kind:'roll'},view.current);}
+function uiAnswer(ix){if(!view||!view.pending)return;act({kind:'answer',idx:ix},view.pending.forSeat);}
 
 /* ---- engine (host/offline) ---- */
 function beginGame(players){G={players,current:0,won:false,busy:false,winner:null,pending:null,lastDie:null,ign:0};
@@ -480,13 +502,9 @@ function resolveLanding(seat){const p=G.players[seat];if(p.pos>=FINISH){win(seat
   endTurn();}
 function extraMove(seat,k){const p=G.players[seat],to=Math.min(p.pos+k,FINISH);G.busy=true;renderAll();stepTo(seat,to,()=>{p.pos>=FINISH?win(seat):endTurn();});}
 function behind(seat){const p=G.players[seat];let best=null,bp=-1;G.players.forEach((q,k)=>{if(k!==seat&&!q.out&&q.pos<=p.pos&&q.pos>bp){bp=q.pos;best=k;}});return best;}
-function ignAdvance(k){G.ign=Math.min((G.ign||0)+k,FINISH);
-  if(G.ign>=FINISH){ignWins();return;}
-  G.players.forEach(p=>{if(!p.out&&p.pos>=1&&p.pos<FINISH&&G.ign>=p.pos){p.out=true;log(`💀 The Ignorance caught <b>${p.name}</b> — out of the race!`);}});
-  if(G.players.every(p=>p.out)){ignWins();return;}
-  renderAll();}
+function ignAdvance(k){G.ign=Math.min((G.ign||0)+k,FINISH);if(G.ign>=FINISH){ignWins();return;}renderAll();}
 function ignRetreat(k){G.ign=Math.max((G.ign||0)-k,0);}
-function ignWins(){G.won=true;G.winner=-1;G.pending=null;G.busy=false;log('🧠 <b>The Ignorance</b> wins — everyone was caught!');commit();}
+function ignWins(){G.won=true;G.winner=-1;G.pending=null;G.busy=false;log('🧠 <b>The Ignorance</b> reached the finish first!');commit();}
 function win(seat){G.won=true;G.winner=seat;G.pending=null;G.busy=false;log(`🏆 <b>${G.players[seat].name}</b> reaches the finish and wins!`);commit();}
 function hostSkipToCPU(){if(!iAmHost||!G)return;const c=G.players[G.current];c.isCPU=true;c.cpuLevel='medium';toast(c.name+' → CPU');clearTimeout(aiTimer);commit();}
 
