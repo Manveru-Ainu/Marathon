@@ -317,6 +317,18 @@
     <button class="btn btn-ghost" onclick="exportCSV()">⬇ Export CSV</button>
     <button class="btn btn-ghost" onclick="exportJSON()">⬇ Export JSON</button>
     <button class="btn btn-ghost" onclick="clearRecords()">🗑 Clear device</button>
+    <button class="btn btn-ghost" onclick="toggleCloudSetup()">⚙ Cloud setup</button>
+  </div>
+  <div id="cloudSetup" style="display:none;border:2px dashed var(--line);border-radius:14px;padding:14px;margin-top:10px;text-align:left;background:#fafafa">
+    <p class="sub" style="margin:0 0 8px">☁ Sync grades across devices (Firebase Realtime Database)</p>
+    <div class="field" style="margin:6px 0"><label>Database URL</label><input id="cfgUrl" placeholder="https://your-project-default-rtdb.firebaseio.com"></div>
+    <div class="field" style="margin:6px 0"><label>Class / group ID (optional)</label><input id="cfgCls" placeholder="default"></div>
+    <div class="row-btns" style="margin-top:6px;justify-content:flex-start">
+      <button class="btn btn-primary" onclick="saveCloudCfg()">💾 Save &amp; test</button>
+      <button class="btn btn-ghost" onclick="cfgClear()">Turn off</button>
+    </div>
+    <p class="waiting-note" id="cfgStatus" style="text-align:left"></p>
+    <p class="hint" style="margin-top:4px">Get a URL free: console.firebase.google.com → your project → Build → Realtime Database → Create (test mode). Paste the URL it shows. Saved on this device only.</p>
   </div>
   <div id="recordsBody" style="margin-top:14px;text-align:left;max-height:60vh;overflow:auto"></div>
   <div class="row-btns"><button class="btn btn-ghost" onclick="showScreen('menuScreen')">← Back to menu</button></div>
@@ -571,11 +583,25 @@ showScreen('menuScreen');
    ============================================================ */
 const CLOUD_URL=''; // e.g. 'https://your-project-default-rtdb.firebaseio.com'
 const CLASS_ID='default';
-function cloudOn(){return !!CLOUD_URL;}
-function cloudPath(){return CLOUD_URL.replace(/\/+$/,'')+'/emar_records/'+encodeURIComponent(CLASS_ID)+'.json';}
+function cfgGet(){let url=CLOUD_URL||'',cls=CLASS_ID||'default';try{url=localStorage.getItem('emar_cloud_url')||url;cls=localStorage.getItem('emar_class_id')||cls;}catch(e){}return {url:String(url).replace(/\/+$/,''),cls:cls||'default'};}
+function cloudOn(){return !!cfgGet().url;}
+function cloudPath(){const c=cfgGet();return c.url+'/emar_records/'+encodeURIComponent(c.cls)+'.json';}
+function toggleCloudSetup(){const d=document.getElementById('cloudSetup');const show=d.style.display==='none';d.style.display=show?'block':'none';
+  if(show){const c=cfgGet();document.getElementById('cfgUrl').value=(()=>{try{return localStorage.getItem('emar_cloud_url')||'';}catch(e){return '';}})()||c.url;document.getElementById('cfgCls').value=c.cls;document.getElementById('cfgStatus').textContent=cloudOn()?'Status: ☁ cloud ON':'Status: 📱 local only';}}
+function saveCloudCfg(){const url=(document.getElementById('cfgUrl').value||'').trim().replace(/\/+$/,'');const cls=(document.getElementById('cfgCls').value||'default').trim()||'default';
+  if(url&&!/^https?:\/\/.+/.test(url)){document.getElementById('cfgStatus').textContent='⚠ URL must start with https://';return;}
+  try{if(url)localStorage.setItem('emar_cloud_url',url);else localStorage.removeItem('emar_cloud_url');localStorage.setItem('emar_class_id',cls);}catch(e){document.getElementById('cfgStatus').textContent='⚠ This device blocks storage (works on the published site).';return;}
+  if(!url){document.getElementById('cfgStatus').textContent='Cloud turned off — using this device only.';toast('Cloud off');return;}
+  document.getElementById('cfgStatus').textContent='Testing…';testCloud();}
+function cfgClear(){document.getElementById('cfgUrl').value='';saveCloudCfg();}
+function testCloud(){const test={id:Date.now(),date:new Date().toISOString(),mode:'test',winner:'connection-test',players:[]};
+  fetch(cloudPath(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(test)})
+    .then(r=>{if(r.ok){document.getElementById('cfgStatus').textContent='✓ Connected — grades will sync to the cloud.';toast('☁ Cloud connected');}
+      else{document.getElementById('cfgStatus').textContent='⚠ Saved, but write failed (status '+r.status+'). Check the database rules allow write.';}})
+    .catch(()=>{document.getElementById('cfgStatus').textContent='⚠ Could not reach the database. Check the URL and your connection.';});}
 function cloudSave(s){if(!cloudOn())return;fetch(cloudPath(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)})
   .then(r=>toast(r.ok?'☁ Saved to cloud':'☁ Cloud save failed ('+r.status+')')).catch(()=>toast('☁ Cloud save failed (offline?)'));}
-function cloudLoad(){return fetch(cloudPath()).then(r=>{if(!r.ok)throw 0;return r.json();}).then(o=>o?Object.keys(o).map(k=>o[k]).filter(Boolean).sort((a,b)=>(b.id||0)-(a.id||0)):[]);}
+function cloudLoad(){return fetch(cloudPath()).then(r=>{if(!r.ok)throw 0;return r.json();}).then(o=>o?Object.keys(o).map(k=>o[k]).filter(x=>x&&x.mode!=='test').sort((a,b)=>(b.id||0)-(a.id||0)):[]);}
 
 /* ===== scoring · results · local records backend ===== */
 const SKEY='emar_records';let _mem=null,sessionSaved=false,resultShown=false,recordsSrc='local',recordsCache=[],_recLoadId=0;
