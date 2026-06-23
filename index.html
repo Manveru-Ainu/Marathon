@@ -171,7 +171,6 @@
 
 </style>
 </head>
-  <script src="https://manveru-ainu.github.io/ManveruGames/manveru-credit.js"></script>
 <body>
 <style>
   .token.ign{background:#15202e;border-color:#000;animation:blinkIgn .7s ease-in-out infinite;}
@@ -197,6 +196,14 @@
   .qm-opt:active:not([disabled]){transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.14);}
   .qm-opt[disabled]{opacity:.55;cursor:default;}
   .qm-wait{margin-top:16px;font-weight:800;color:var(--muted);text-align:center;font-size:14px;}
+  .rtable{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;}
+  .rtable th,.rtable td{border:1px solid var(--line);padding:7px 9px;text-align:center;}
+  .rtable th{background:#f3ede0;font-weight:800;}
+  .rtable td.name{text-align:left;font-weight:800;}
+  .rtable .grade{font-weight:800;color:#1d2433;}
+  .sess{border:2px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0;background:#fafafa;}
+  .sess h4{margin:0 0 4px;font-size:14px;}
+  .sess .meta{color:var(--muted);font-weight:700;font-size:11.5px;margin-bottom:6px;}
 </style>
 <div class="wrap">
   <header class="top">
@@ -215,6 +222,7 @@
     <button class="big-btn local" onclick="goLocalSetup()"><span class="em">🧑‍🏫</span><span>Pass &amp; Play<small>2–6 players on this device</small></span></button>
     <button class="big-btn ai" onclick="goAISetup()"><span class="em">🤖</span><span>Play vs Computer<small>1–5 CPU opponents · choose difficulty</small></span></button>
     <button class="big-btn online" onclick="goOnlineSetup()"><span class="em">🌐</span><span>Online Multiplayer<small>Host or join with a 5-digit code · up to 6</small></span></button>
+    <button class="big-btn" style="background:#f1f1f1" onclick="goRecords()"><span class="em">📊</span><span>Records &amp; Grades<small>Past sessions, scores &amp; CSV export</small></span></button>
   </div></div></section>
 
   <section class="screen" id="localScreen"><div class="menu-wrap"><div class="menu-card">
@@ -260,6 +268,7 @@
       <div class="row-btns"><button class="btn btn-primary" onclick="hostStart()">Start game ▶</button></div>
     </div>
     <p class="waiting-note" id="guestWait" style="display:none">Waiting for the host to start…</p>
+    <p class="waiting-note" id="netStatus" style="color:#c7341d"></p>
     <div class="row-btns"><button class="btn btn-ghost" onclick="leaveOnline()">✕ Leave</button></div>
   </div></div></section>
 
@@ -297,6 +306,22 @@
 
   <div class="winbar" id="winbar" style="margin-top:14px"></div>
 </div>
+<section class="screen" id="recordsScreen"><div class="menu-wrap"><div class="menu-card" style="max-width:780px">
+  <h2>📊 Records &amp; Grades</h2>
+  <p class="sub">Per-student grades — review past sessions any day, on this device or synced to the cloud</p>
+  <div class="opt-row" id="recSrc" style="margin:2px 0 6px">
+    <button class="pill-btn on" data-s="local" onclick="setRecSrc('local')">📱 This device</button>
+    <button class="pill-btn" data-s="cloud" onclick="setRecSrc('cloud')">☁ Cloud (all)</button>
+  </div>
+  <div class="row-btns" style="margin-top:0">
+    <button class="btn btn-ghost" onclick="exportCSV()">⬇ Export CSV</button>
+    <button class="btn btn-ghost" onclick="exportJSON()">⬇ Export JSON</button>
+    <button class="btn btn-ghost" onclick="clearRecords()">🗑 Clear device</button>
+  </div>
+  <div id="recordsBody" style="margin-top:14px;text-align:left;max-height:60vh;overflow:auto"></div>
+  <div class="row-btns"><button class="btn btn-ghost" onclick="showScreen('menuScreen')">← Back to menu</button></div>
+</div></div></section>
+<div class="qmodal" id="resultModal"><div class="qmodal-card" id="resultCard" style="max-width:740px"></div></div>
 <div class="qmodal" id="qModal"><div class="qmodal-card" id="qModalCard"></div></div>
 <div class="toast" id="toast"></div>
 
@@ -330,7 +355,7 @@ function catOf(pos){return (pos>=1&&pos<=N&&CAT[PLAY[pos-1].t])?PLAY[pos-1].t:nu
 let mode='local',iAmHost=true,mySeat=0;
 let G=null,view=null;
 let peer=null,conns=[],connSeat=new Map(),roomCode='',lobby=[];
-let aiTimer=null,tokenEls=[],ignEl=null,lastPos={},boardBuilt=false;
+let aiTimer=null,tokenEls=[],ignEl=null,lastPos={},boardBuilt=false,guestConnected=false;
 
 function showScreen(id){document.querySelectorAll('.screen').forEach(x=>x.classList.toggle('on',x.id===id));document.getElementById('menuBtn').style.display=(id==='gameScreen')?'inline-block':'none';}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
@@ -340,7 +365,7 @@ selWire('localCount');selWire('aiCount');selWire('aiLevel');
 document.getElementById('menuBtn').onclick=()=>{if(confirm('Leave game and return to menu?')){teardown();showScreen('menuScreen');}};
 function selVal(id,a){const b=document.querySelector('#'+id+' .pill-btn.on');return b?b.dataset[a]:null;}
 function goLocalSetup(){showScreen('localScreen');}function goAISetup(){showScreen('aiScreen');}function goOnlineSetup(){showScreen('onlineScreen');}
-function mkPlayer(name,seat,isCPU,cpuLevel){return {name,color:PCOL[seat],pos:0,skip:false,out:false,isCPU:!!isCPU,cpuLevel:cpuLevel||'medium'};}
+function mkPlayer(name,seat,isCPU,cpuLevel){return {name,color:PCOL[seat],pos:0,skip:false,out:false,isCPU:!!isCPU,cpuLevel:cpuLevel||'medium',stats:{ans:0,ok:0,lv:{A:[0,0],B:[0,0],C:[0,0]}}};}
 function startLocal(){mode='local';iAmHost=true;mySeat=0;const n=+selVal('localCount','n');beginGame(Array.from({length:n},(_,k)=>mkPlayer(PNAME[k],k,false)));}
 function startAI(){mode='ai';iAmHost=true;mySeat=0;const n=+selVal('aiCount','n'),lvl=selVal('aiLevel','l');
   const name=(document.getElementById('aiName').value||'You').trim().slice(0,14)||'You';
@@ -348,15 +373,23 @@ function startAI(){mode='ai';iAmHost=true;mySeat=0;const n=+selVal('aiCount','n'
 
 /* ---- online (PeerJS, host-authoritative) ---- */
 function gen5(){return String(Math.floor(10000+Math.random()*90000));}
-function initPeer(id,onReady){if(typeof Peer==='undefined'){toast('⚠️ Online unavailable (no PeerJS).');return;}
-  peer=new Peer(id,{debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]}});
-  peer.on('open',oid=>onReady(oid));peer.on('error',e=>toast('Connection error: '+e.type));}
+function initPeer(id,onReady){if(typeof Peer==='undefined'){toast('⚠️ Online unavailable (no PeerJS).');setStatus('⚠ PeerJS not loaded — check your connection.');return;}
+  peer=new Peer(id,{debug:1,config:{iceServers:[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+    {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
+  ]}});
+  peer.on('open',oid=>onReady(oid));
+  peer.on('error',e=>onPeerError(e));
+  peer.on('disconnected',()=>{setStatus('Reconnecting…');try{peer.reconnect();}catch(_){}}); }
 function hostCreate(){mode='online';iAmHost=true;mySeat=0;
   const name=(document.getElementById('onName').value||'Host').trim().slice(0,14)||'Host';
   roomCode=gen5();lobby=[{name,isCPU:false}];conns=[];connSeat=new Map();
   initPeer('emar-'+roomCode,()=>{document.getElementById('hostCodeWrap').style.display='block';document.getElementById('hostTools').style.display='block';
     document.getElementById('guestWait').style.display='none';document.getElementById('waitTitle').textContent='Your room is ready';
-    document.getElementById('roomCodeBox').textContent=roomCode;renderLobby();showScreen('waitScreen');peer.on('connection',c=>hostConn(c));});}
+    document.getElementById('roomCodeBox').textContent=roomCode;renderLobby();showScreen('waitScreen');peer.on('connection',c=>hostConn(c));setStatus('Room ready — share the code.');});}
 function hostConn(c){c.on('open',()=>{});c.on('data',d=>{
   if(d.type==='hello'){if(lobby.length>=6){c.send({type:'full'});return;}const seat=lobby.length;lobby.push({name:(d.name||'Player').slice(0,14),isCPU:false});
     conns.push(c);connSeat.set(c,seat);c.send({type:'welcome',seat});broadcastLobby();renderLobby();toast(lobby[seat].name+' joined');}
@@ -370,19 +403,20 @@ function hostStart(){if(lobby.length<2){toast('Need at least 2 players.');return
   const players=lobby.map((p,k)=>mkPlayer(p.name,k,p.isCPU,p.cpuLevel));
   conns.forEach(c=>c.open&&c.send({type:'start',players:players.map(stripP)}));beginGame(players);}
 function guestJoin(){const code=(document.getElementById('joinCode').value||'').trim();if(!/^\d{5}$/.test(code)){toast('Enter a 5-digit code.');return;}
-  const name=(document.getElementById('onName').value||'Player').trim().slice(0,14)||'Player';mode='online';iAmHost=false;
+  const name=(document.getElementById('onName').value||'Player').trim().slice(0,14)||'Player';mode='online';iAmHost=false;guestConnected=false;
   initPeer(null,()=>{const c=peer.connect('emar-'+code,{metadata:{name}});conns=[c];
-    c.on('open',()=>c.send({type:'hello',name}));c.on('data',d=>guestData(d));c.on('error',()=>toast('Could not connect.'));c.on('close',()=>toast('Disconnected.'));
+    c.on('open',()=>{setStatus('Linked — joining room…');c.send({type:'hello',name});});c.on('data',d=>guestData(d));c.on('error',e=>onPeerError(e||{type:'connect'}));c.on('close',()=>toast('Disconnected.'));
     document.getElementById('hostCodeWrap').style.display='none';document.getElementById('hostTools').style.display='none';document.getElementById('guestWait').style.display='block';
-    document.getElementById('waitTitle').textContent='Joining…';showScreen('waitScreen');});}
-function guestData(d){if(d.type==='welcome'){mySeat=d.seat;document.getElementById('waitTitle').textContent='Joined! Waiting for host';}
+    document.getElementById('waitTitle').textContent='Joining…';setStatus('Connecting…');showScreen('waitScreen');
+    setTimeout(()=>{if(!guestConnected&&!iAmHost)setStatus('⚠ Still connecting… check the code, or the network may be blocking WebRTC.');},15000);});}
+function guestData(d){if(d.type==='welcome'){mySeat=d.seat;guestConnected=true;setStatus('Connected ✓');document.getElementById('waitTitle').textContent='Joined! Waiting for host';}
   else if(d.type==='full'){toast('Room is full.');showScreen('onlineScreen');}
   else if(d.type==='lobby'){lobby=d.lobby;renderLobby();}
   else if(d.type==='start'){beginGameGuest(d.players);}
   else if(d.type==='state'){view=d.G;render();}}
 function leaveOnline(){teardown();showScreen('menuScreen');}
 function teardown(){clearTimeout(aiTimer);try{conns.forEach(c=>c.close&&c.close());}catch(e){}try{peer&&peer.destroy();}catch(e){}peer=null;conns=[];connSeat=new Map();G=null;view=null;boardBuilt=false;document.getElementById('winbar').style.display='none';}
-function stripP(p){return {name:p.name,color:p.color,pos:p.pos,skip:p.skip,out:p.out,isCPU:p.isCPU};}
+function stripP(p){return {name:p.name,color:p.color,pos:p.pos,skip:p.skip,out:p.out,isCPU:p.isCPU,stats:p.stats};}
 function stripState(){const s=JSON.parse(JSON.stringify({players:G.players.map(stripP),current:G.current,won:G.won,busy:G.busy,winner:G.winner,lastDie:G.lastDie,ign:G.ign,pending:G.pending}));if(s.pending&&s.pending.q)delete s.pending.q.a;return s;}
 function broadcast(){if(mode==='online'&&iAmHost){const s=stripState();conns.forEach(c=>c.open&&c.send({type:'state',G:s}));}}
 
@@ -423,7 +457,7 @@ function render(){if(!view)return;
   document.getElementById('skipTools').style.display=(mode==='online'&&iAmHost&&!cp.isCPU&&!isMine(view.current))?'block':'none';
   const rb=document.getElementById('rollBtn');const canRoll=!view.won&&!view.pending&&!view.busy&&!cp.out&&!cp.isCPU&&isMine(view.current);
   rb.disabled=!canRoll;rb.style.display=(view.pending||view.won)?'none':'inline-block';
-  if(view.won){document.getElementById('turnSub').textContent='Race finished';showWin();}
+  if(view.won){document.getElementById('turnSub').textContent='Race finished';showWin();maybeResults();}
   else if(view.busy)document.getElementById('turnSub').textContent='Running…';
   else if(view.pending)document.getElementById('turnSub').textContent='Answering…';
   else document.getElementById('turnSub').textContent=cp.isCPU?'CPU is thinking…':(isMine(view.current)?'Your turn — roll!':'Waiting for '+cp.name);
@@ -458,9 +492,11 @@ function uiAnswer(ix){if(!view||!view.pending)return;act({kind:'answer',idx:ix},
 
 /* ---- engine (host/offline) ---- */
 function beginGame(players){G={players,current:0,won:false,busy:false,winner:null,pending:null,lastDie:null,ign:0};
+  sessionSaved=false;resultShown=false;document.getElementById('resultModal').classList.remove('on');
   buildBoard(players);showScreen('gameScreen');document.getElementById('winbar').style.display='none';
   log('Game start · '+players.map(p=>p.name).join(', '),true);beginTurn();}
-function beginGameGuest(players){mode='online';iAmHost=false;buildBoard(players);showScreen('gameScreen');document.getElementById('winbar').style.display='none';
+function beginGameGuest(players){mode='online';iAmHost=false;sessionSaved=false;resultShown=false;document.getElementById('resultModal').classList.remove('on');
+  buildBoard(players);showScreen('gameScreen');document.getElementById('winbar').style.display='none';
   view={players:players.map(p=>Object.assign({},p)),current:0,won:false,busy:false,pending:null,lastDie:null,ign:0};render();}
 function commit(){view=G;render();broadcast();afterCommit();}
 function renderAll(){view=G;render();broadcast();}
@@ -486,6 +522,7 @@ function hostAction(seat,a){if(!iAmHost||!G||G.won)return;
   const pn=G.pending;if(!pn||pn.forSeat!==seat)return;
   if(a.kind==='answer'&&pn.stage==='question')resolveAnswer(a.idx);}
 function resolveAnswer(idx){const pn=G.pending,seat=pn.forSeat,p=G.players[seat],correct=(idx===pn.q.a),target=pn.target;G.pending=null;
+  const st=p.stats,lv=pn.q.lvl;if(st&&st.lv[lv]){st.ans++;st.lv[lv][0]++;if(correct){st.ok++;st.lv[lv][1]++;}}
   if(correct){log(`<b>${p.name}</b> ✓ correct — advancing`);G.busy=true;renderAll();stepTo(seat,target,()=>resolveLanding(seat));}
   else{log(`<b>${p.name}</b> ✗ wrong — the Ignorance advances 🏃`);ignAdvance(1);if(!G.won)endTurn();}}
 function stepTo(seat,to,done){const p=G.players[seat],dir=to>=p.pos?1:-1;(function tick(){if(p.pos===to){renderAll();done();return;}p.pos+=dir;renderAll();setTimeout(tick,150);})();}
@@ -517,6 +554,82 @@ function cpuResolve(seat){if(!G||G.won||!G.pending||G.pending.forSeat!==seat||!G
     hostAction(seat,{kind:'answer',idx});}}
 
 showScreen('menuScreen');
+
+/* ============================================================
+   CLOUD BACKEND (optional) — sync grades across ALL devices
+   1) Create a free Firebase project → build a Realtime Database (start in test mode)
+   2) Paste its URL below as CLOUD_URL (keep the quotes)
+   3) Optionally set CLASS_ID per class/group to keep records separate
+   Leave CLOUD_URL = '' to use only this device (localStorage).
+   ============================================================ */
+const CLOUD_URL=''; // e.g. 'https://your-project-default-rtdb.firebaseio.com'
+const CLASS_ID='default';
+function cloudOn(){return !!CLOUD_URL;}
+function cloudPath(){return CLOUD_URL.replace(/\/+$/,'')+'/emar_records/'+encodeURIComponent(CLASS_ID)+'.json';}
+function cloudSave(s){if(!cloudOn())return;fetch(cloudPath(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)})
+  .then(r=>toast(r.ok?'☁ Saved to cloud':'☁ Cloud save failed ('+r.status+')')).catch(()=>toast('☁ Cloud save failed (offline?)'));}
+function cloudLoad(){return fetch(cloudPath()).then(r=>{if(!r.ok)throw 0;return r.json();}).then(o=>o?Object.keys(o).map(k=>o[k]).filter(Boolean).sort((a,b)=>(b.id||0)-(a.id||0)):[]);}
+
+/* ===== scoring · results · local records backend ===== */
+const SKEY='emar_records';let _mem=null,sessionSaved=false,resultShown=false,recordsSrc='local',recordsCache=[],_recLoadId=0;
+function _lsOK(){try{localStorage.setItem('__emar_t','1');localStorage.removeItem('__emar_t');return true;}catch(e){return false;}}
+const HASLS=_lsOK();
+function storeLoad(){if(!HASLS)return _mem||(_mem=[]);try{return JSON.parse(localStorage.getItem(SKEY)||'[]');}catch(e){return [];}}
+function storeSave(a){if(!HASLS){_mem=a;return;}try{localStorage.setItem(SKEY,JSON.stringify(a));}catch(e){_mem=a;}}
+function storeAdd(s){const a=storeLoad();a.unshift(s);if(a.length>300)a.length=300;storeSave(a);}
+function acc(st){return st&&st.ans?Math.round(st.ok/st.ans*100):0;}
+function grade10(st){return st&&st.ans?+(st.ok/st.ans*10).toFixed(1):0;}
+function rankedPlayers(){return view.players.map((p,k)=>({p,k})).sort((a,b)=>((b.k===view.winner)-(a.k===view.winner))||(b.p.pos-a.p.pos));}
+function saveSession(){if(sessionSaved)return;sessionSaved=true;const ranked=rankedPlayers();
+  const sess={id:Date.now(),date:new Date().toISOString(),mode,
+    winner:(view.winner===-1?'The Ignorance':(view.winner==null?'—':view.players[view.winner].name)),
+    players:ranked.filter(r=>!r.p.isCPU).map(r=>{const st=r.p.stats||{ans:0,ok:0,lv:{A:[0,0],B:[0,0],C:[0,0]}};
+      return {name:r.p.name,place:ranked.indexOf(r)+1,answered:st.ans,correct:st.ok,accuracy:acc(st),grade:grade10(st),A:st.lv.A,B:st.lv.B,C:st.lv.C};})};
+  if(sess.players.length){storeAdd(sess);cloudSave(sess);}}
+function maybeResults(){if(!view.won||resultShown)return;resultShown=true;if(iAmHost||mode!=='online')saveSession();showResultModal();}
+function showResultModal(){const ranked=rankedPlayers();
+  const rows=ranked.map((r,i)=>{const st=r.p.stats||{ans:0,ok:0};const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'.';
+    return `<tr><td>${medal}</td><td class="name">${r.p.name}${r.p.isCPU?' <span class="cpu-tag">CPU</span>':''}</td><td>${st.ans||0}</td><td>${st.ok||0}</td><td>${acc(st)}%</td><td class="grade">${grade10(st)}</td></tr>`;}).join('');
+  const wl=view.winner===-1?'🧠 The Ignorance reached the finish first':(view.winner==null?'Game over':'🏆 '+view.players[view.winner].name+' wins');
+  const guest=!iAmHost&&mode==='online';
+  document.getElementById('resultCard').innerHTML=`<div class="qm-q" style="margin-bottom:6px">Results · Resultados</div>
+    <div class="qm-tag" style="margin-bottom:10px">${wl}</div>
+    <table class="rtable"><tr><th>#</th><th>Player</th><th>Answered</th><th>Correct</th><th>Accuracy</th><th>Grade /10</th></tr>${rows}</table>
+    <div class="qm-wait" style="margin-top:10px">${guest?'The host keeps the official record.':('✓ Saved'+(cloudOn()?' to this device + cloud':' to this device')+' (students only).')}</div>
+    <div class="row-btns">${guest?'<button class="btn btn-ghost" onclick="saveSession();toast(\'Saved on this device\')">💾 Save my copy</button>':''}
+      <button class="btn btn-ghost" onclick="closeResult();goRecords()">📊 Records</button>
+      <button class="btn btn-primary" onclick="closeResult();teardown();showScreen('menuScreen')">↻ New game</button>
+      <button class="btn btn-ghost" onclick="closeResult()">✕ Close</button></div>`;
+  document.getElementById('resultModal').classList.add('on');}
+function closeResult(){document.getElementById('resultModal').classList.remove('on');}
+function goRecords(){recordsSrc='local';document.querySelectorAll('#recSrc .pill-btn').forEach(b=>b.classList.toggle('on',b.dataset.s==='local'));renderRecords();showScreen('recordsScreen');}
+function setRecSrc(s){recordsSrc=s;document.querySelectorAll('#recSrc .pill-btn').forEach(b=>b.classList.toggle('on',b.dataset.s===s));renderRecords();}
+function renderSessions(a){if(!a.length)return '<p class="hint">No sessions yet. Finish a game and results appear here.</p>';
+  return a.map(s=>{const when=new Date(s.date).toLocaleString();
+    const rows=s.players.map(p=>`<tr><td>${p.place}</td><td class="name">${p.name}</td><td>${p.answered}</td><td>${p.correct}</td><td>${p.accuracy}%</td><td class="grade">${p.grade}</td></tr>`).join('');
+    return `<div class="sess"><h4>${when}</h4><div class="meta">Mode: ${s.mode} · Winner: ${s.winner}</div>
+      <table class="rtable"><tr><th>#</th><th>Player</th><th>Ans</th><th>OK</th><th>Acc</th><th>/10</th></tr>${rows}</table></div>`;}).join('');}
+function renderRecords(){const b=document.getElementById('recordsBody');
+  if(recordsSrc==='cloud'){
+    if(!cloudOn()){recordsCache=[];b.innerHTML='<p class="hint">☁ Cloud not set up yet. Paste your Firebase Realtime Database URL into <b>CLOUD_URL</b> at the top of this file to sync grades across devices.</p>';return;}
+    b.innerHTML='<p class="hint">Loading from cloud…</p>';const my=++_recLoadId;
+    cloudLoad().then(a=>{if(my!==_recLoadId)return;recordsCache=a;b.innerHTML='<div class="meta" style="margin-bottom:6px">☁ Cloud · all devices · '+a.length+' sessions</div>'+renderSessions(a);})
+      .catch(()=>{if(my!==_recLoadId)return;recordsCache=[];b.innerHTML='<p class="hint">⚠ Could not reach the cloud. Check the database URL and its read/write rules, or your connection.</p>';});
+    return;}
+  const a=storeLoad();recordsCache=a;
+  b.innerHTML=(HASLS?'':'<p class="hint">⚠ Preview only — permanent saving works on the published site.</p>')+'<div class="meta" style="margin-bottom:6px">📱 This device · '+a.length+' sessions</div>'+renderSessions(a);}
+function clearRecords(){if(confirm('Delete ALL saved sessions on this device?')){storeSave([]);renderRecords();toast('Records cleared');}}
+function downloadBlob(text,name,type){try{const bl=new Blob([text],{type});const u=URL.createObjectURL(bl);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}catch(e){toast('Download blocked here — try on the published site.');}}
+function exportJSON(){downloadBlob(JSON.stringify(recordsCache.length?recordsCache:storeLoad(),null,2),'english-marathon-records.json','application/json');}
+function exportCSV(){const a=recordsCache.length?recordsCache:storeLoad();const rows=[['date','mode','winner','player','place','answered','correct','accuracy_pct','grade_10','A_ans','A_ok','B_ans','B_ok','C_ans','C_ok']];
+  a.forEach(s=>s.players.forEach(p=>rows.push([s.date,s.mode,s.winner,p.name,p.place,p.answered,p.correct,p.accuracy,p.grade,p.A[0],p.A[1],p.B[0],p.B[1],p.C[0],p.C[1]])));
+  const csv=rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');downloadBlob(csv,'english-marathon-records.csv','text/csv');}
+function setStatus(m){const e=document.getElementById('netStatus');if(e)e.textContent=m||'';}
+function onPeerError(e){const t=(e&&e.type)||'error';
+  const msg={'peer-unavailable':'No room with that code (is the host online?)','unavailable-id':'Room code in use — generating a new one…','network':'Network/broker issue — check your connection','server-error':'Signalling server busy — try again','browser-incompatible':'This browser blocks WebRTC','ssl-unavailable':'Open the page over https:// for online play','webrtc':'WebRTC blocked by this network','connect':'Could not reach the host'}[t]||('Connection error: '+t);
+  setStatus('⚠ '+msg);toast('⚠ '+msg);
+  if(iAmHost&&t==='unavailable-id'&&!G){roomCode=gen5();try{peer&&peer.destroy();}catch(_){}initPeer('emar-'+roomCode,()=>{document.getElementById('roomCodeBox').textContent=roomCode;peer.on('connection',c=>hostConn(c));setStatus('New code ready — share it.');});}}
 </script>
+
 </body>
 </html>
