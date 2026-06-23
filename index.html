@@ -355,7 +355,7 @@ function catOf(pos){return (pos>=1&&pos<=N&&CAT[PLAY[pos-1].t])?PLAY[pos-1].t:nu
 let mode='local',iAmHost=true,mySeat=0;
 let G=null,view=null;
 let peer=null,conns=[],connSeat=new Map(),roomCode='',lobby=[];
-let aiTimer=null,tokenEls=[],ignEl=null,lastPos={},boardBuilt=false,guestConnected=false;
+let aiTimer=null,tokenEls=[],ignEl=null,lastPos={},boardBuilt=false,guestConnected=false,guardOn=false,_guardPushed=false;
 
 function showScreen(id){document.querySelectorAll('.screen').forEach(x=>x.classList.toggle('on',x.id===id));document.getElementById('menuBtn').style.display=(id==='gameScreen')?'inline-block':'none';}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
@@ -389,7 +389,7 @@ function hostCreate(){mode='online';iAmHost=true;mySeat=0;
   roomCode=gen5();lobby=[{name,isCPU:false}];conns=[];connSeat=new Map();
   initPeer('emar-'+roomCode,()=>{document.getElementById('hostCodeWrap').style.display='block';document.getElementById('hostTools').style.display='block';
     document.getElementById('guestWait').style.display='none';document.getElementById('waitTitle').textContent='Your room is ready';
-    document.getElementById('roomCodeBox').textContent=roomCode;renderLobby();showScreen('waitScreen');peer.on('connection',c=>hostConn(c));setStatus('Room ready — share the code.');});}
+    document.getElementById('roomCodeBox').textContent=roomCode;renderLobby();showScreen('waitScreen');peer.on('connection',c=>hostConn(c));setStatus('Room ready — share the code.');armGuard();});}
 function hostConn(c){c.on('open',()=>{});c.on('data',d=>{
   if(d.type==='hello'){if(lobby.length>=6){c.send({type:'full'});return;}const seat=lobby.length;lobby.push({name:(d.name||'Player').slice(0,14),isCPU:false});
     conns.push(c);connSeat.set(c,seat);c.send({type:'welcome',seat});broadcastLobby();renderLobby();toast(lobby[seat].name+' joined');}
@@ -409,13 +409,20 @@ function guestJoin(){const code=(document.getElementById('joinCode').value||'').
     document.getElementById('hostCodeWrap').style.display='none';document.getElementById('hostTools').style.display='none';document.getElementById('guestWait').style.display='block';
     document.getElementById('waitTitle').textContent='Joining…';setStatus('Connecting…');showScreen('waitScreen');
     setTimeout(()=>{if(!guestConnected&&!iAmHost)setStatus('⚠ Still connecting… check the code, or the network may be blocking WebRTC.');},15000);});}
-function guestData(d){if(d.type==='welcome'){mySeat=d.seat;guestConnected=true;setStatus('Connected ✓');document.getElementById('waitTitle').textContent='Joined! Waiting for host';}
+function guestData(d){if(d.type==='welcome'){mySeat=d.seat;guestConnected=true;setStatus('Connected ✓');armGuard();document.getElementById('waitTitle').textContent='Joined! Waiting for host';}
   else if(d.type==='full'){toast('Room is full.');showScreen('onlineScreen');}
   else if(d.type==='lobby'){lobby=d.lobby;renderLobby();}
   else if(d.type==='start'){beginGameGuest(d.players);}
   else if(d.type==='state'){view=d.G;render();}}
 function leaveOnline(){teardown();showScreen('menuScreen');}
-function teardown(){clearTimeout(aiTimer);try{conns.forEach(c=>c.close&&c.close());}catch(e){}try{peer&&peer.destroy();}catch(e){}peer=null;conns=[];connSeat=new Map();G=null;view=null;boardBuilt=false;document.getElementById('winbar').style.display='none';}
+function teardown(){clearTimeout(aiTimer);try{conns.forEach(c=>c.close&&c.close());}catch(e){}try{peer&&peer.destroy();}catch(e){}peer=null;conns=[];connSeat=new Map();G=null;view=null;boardBuilt=false;document.getElementById('winbar').style.display='none';disarmGuard();}
+function armGuard(){guardOn=true;if(!_guardPushed){try{history.pushState({emar:1},'');_guardPushed=true;}catch(_){}}}
+function disarmGuard(){guardOn=false;}
+window.addEventListener('beforeunload',function(e){if(guardOn){e.preventDefault();e.returnValue='';return '';}});
+window.addEventListener('popstate',function(e){if(guardOn){
+  if(confirm('¿Seguro que quieres salir del juego? Se perderá la partida en curso.')){disarmGuard();_guardPushed=false;teardown();showScreen('menuScreen');}
+  else{try{history.pushState({emar:1},'');_guardPushed=true;}catch(_){}}
+}});
 function stripP(p){return {name:p.name,color:p.color,pos:p.pos,skip:p.skip,out:p.out,isCPU:p.isCPU,stats:p.stats};}
 function stripState(){const s=JSON.parse(JSON.stringify({players:G.players.map(stripP),current:G.current,won:G.won,busy:G.busy,winner:G.winner,lastDie:G.lastDie,ign:G.ign,pending:G.pending}));if(s.pending&&s.pending.q)delete s.pending.q.a;return s;}
 function broadcast(){if(mode==='online'&&iAmHost){const s=stripState();conns.forEach(c=>c.open&&c.send({type:'state',G:s}));}}
@@ -494,10 +501,10 @@ function uiAnswer(ix){if(!view||!view.pending)return;act({kind:'answer',idx:ix},
 function beginGame(players){G={players,current:0,won:false,busy:false,winner:null,pending:null,lastDie:null,ign:0};
   sessionSaved=false;resultShown=false;document.getElementById('resultModal').classList.remove('on');
   buildBoard(players);showScreen('gameScreen');document.getElementById('winbar').style.display='none';
-  log('Game start · '+players.map(p=>p.name).join(', '),true);beginTurn();}
+  log('Game start · '+players.map(p=>p.name).join(', '),true);armGuard();beginTurn();}
 function beginGameGuest(players){mode='online';iAmHost=false;sessionSaved=false;resultShown=false;document.getElementById('resultModal').classList.remove('on');
   buildBoard(players);showScreen('gameScreen');document.getElementById('winbar').style.display='none';
-  view={players:players.map(p=>Object.assign({},p)),current:0,won:false,busy:false,pending:null,lastDie:null,ign:0};render();}
+  view={players:players.map(p=>Object.assign({},p)),current:0,won:false,busy:false,pending:null,lastDie:null,ign:0};armGuard();render();}
 function commit(){view=G;render();broadcast();afterCommit();}
 function renderAll(){view=G;render();broadcast();}
 function afterCommit(){if(!iAmHost||!G||G.won||G.busy)return;
@@ -542,8 +549,8 @@ function extraMove(seat,k){const p=G.players[seat],to=Math.min(p.pos+k,FINISH);G
 function behind(seat){const p=G.players[seat];let best=null,bp=-1;G.players.forEach((q,k)=>{if(k!==seat&&!q.out&&q.pos<=p.pos&&q.pos>bp){bp=q.pos;best=k;}});return best;}
 function ignAdvance(k){G.ign=Math.min((G.ign||0)+k,FINISH);if(G.ign>=FINISH){ignWins();return;}renderAll();}
 function ignRetreat(k){G.ign=Math.max((G.ign||0)-k,0);}
-function ignWins(){G.won=true;G.winner=-1;G.pending=null;G.busy=false;log('🧠 <b>The Ignorance</b> reached the finish first!');commit();}
-function win(seat){G.won=true;G.winner=seat;G.pending=null;G.busy=false;log(`🏆 <b>${G.players[seat].name}</b> reaches the finish and wins!`);commit();}
+function ignWins(){G.won=true;G.winner=-1;G.pending=null;G.busy=false;disarmGuard();log('🧠 <b>The Ignorance</b> reached the finish first!');commit();}
+function win(seat){G.won=true;G.winner=seat;G.pending=null;G.busy=false;disarmGuard();log(`🏆 <b>${G.players[seat].name}</b> reaches the finish and wins!`);commit();}
 function hostSkipToCPU(){if(!iAmHost||!G)return;const c=G.players[G.current];c.isCPU=true;c.cpuLevel='medium';toast(c.name+' → CPU');clearTimeout(aiTimer);commit();}
 
 const CPU_BASE={easy:0.5,medium:0.72,hard:0.9};
